@@ -1,0 +1,188 @@
+
+---
+title: "Mixed Membership Model for MI - Simulation example"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(knitr)
+library(dplyr)
+library(arm)
+library(pROC)
+library(tidyverse)
+library(MASS)
+library(tigerstats)
+library(leaps)
+library(car)
+library(rms)
+require(caret)
+require(e1071)
+library(lme4) 
+library(lattice)
+library(broom)
+library(boot)
+library(ggplot2)
+library(cobalt)
+require(tidyverse)
+require(rstanarm)
+require(magrittr)
+require(rstan)
+require(MCMCpack)
+library(abind)
+library(matrixStats)
+library(truncnorm)
+library(mvtnorm)
+library(MCMCpack)
+library(mnormt)
+library(coda)
+```
+
+* * *
+### Generate small dataset
+
+Settings 
+- N = 2000 surveyed subjects
+- K = 3 clusters
+- p = 3 questions/variables
+- d1 = 2 choices while d2 = d3 = 3 choices
+- $\gamma$ = 2 and $\alpha_0$ = 1 for DP generative process
+
+Generative process
+- $\beta|\gamma \sim GEM(\gamma)$
+- $\pi_i|\alpha_0 \sim DP(\alpha_0, \beta)$ for i = 1,...,N
+- $z_{ij}|\pi_i \sim Cat(\pi_i)$ for i = 1,...,N and j = 1,...,p
+- $x_{ij}|z_{ij}=k \sim Cat(\Phi^{(j)}_k)$ for i = 1,...,N and j=1,...,p
+
+```{r}
+set.seed(1)
+# parameter setup
+N = 2000 # number of surveyed subjects
+K_true = 3 # number of true clusteres
+p = 3 # number of survey questions
+d1 = 2 # number of levels of 1st variable
+d2 = 3 # number of levels of 2st variable
+d3 = 3 # number of levels of 3st variable
+gamma_true = 2
+alpha_true = 1
+
+
+# place holder
+Phi_1 = matrix(NA, nrow = K_true, ncol = d1) # multinomial parameter for 1st variable
+Phi_2 = matrix(NA, nrow = K_true, ncol = d2) # multinomial parameter for 2nd variable
+Phi_3 = matrix(NA, nrow = K_true, ncol = d3) # multinomial parameter for 3rd variable
+
+```
+
+```{r}
+# Phi parameter for different clusters and different variables
+# size #clusterx#levels
+
+# 1st variable (d1 = 2)
+Phi_1[,1] = c(0.1, 0.5, 0.8)
+Phi_1[,2] = 1 - Phi_1[,1]
+
+# 2nd variable (d2 = 3)
+Phi_2[,1] = c(0.15, 0.2, 0.8)
+Phi_2[,2] = c(0.4, 0.65, 0.1)
+Phi_2[,3] = 1 - Phi_2[,1] - Phi_2[,2]
+
+# 3rd variable (d3 = 3)
+Phi_3[,1] = c(0.2, 0.1, 0.7)
+Phi_3[,2] = c(0.5, 0.25, 0.15)
+Phi_3[,3] = 1 - Phi_3[,1] - Phi_3[,2]
+
+Phi = list(Phi_1, Phi_2, Phi_3)
+```
+
+```{r}
+# Beta ~ GEM(gamma_true)
+Beta_true = array(NA, dim = K_true)
+V = array(NA, K_true)
+V[K_true] = 1
+prod = 1 # product of (1-V_l) for l<k
+# Sample V_k from k = 1,...,K-1
+for (k in 1:(K_true - 1)) {
+  V[k] = rbeta(1, 1,gamma_true)
+  Beta_true[k] = V[k]*prod
+  prod = prod*(1-V[k])
+}
+Beta_true[K_true] = 1-sum(Beta_true[1:K_true-1])
+```
+
+```{r}
+# Pi_i ~ DP(alpha_true, Beta_true) for i = 1,...,N
+Pi_true = matrix(NA, N, K_true)
+u = matrix(NA, N, K_true)
+u[,K_true] = 1
+prod = array(1, N) # product of (1-u_il) for l<k
+# sample u_ik ~ Beta distribution
+# then, obtain Pi from u
+for (k in 1:(K_true - 1)) {
+  u[,k] = rbeta(N, alpha_true*Beta_true[k], alpha_true*(1-sum(Beta_true[1:k])))
+  Pi_true[,k] = u[,k]*prod
+  prod = prod*(1-u[,k])
+}
+Pi_true[,K_true] = 1-rowSums(Pi_true[,1:K_true-1])
+```
+
+```{r}
+# Check the mean of Pi from DP
+cat('Beta:', Beta_true,'\n')
+cat('Pi:', apply(Pi_true, MARGIN = 2, FUN = mean))
+```
+
+```{r}
+# Sample cluster assignment z_ij ~ Cat(Pi_i)
+# Sample observation x_ij|z_ij=k ~ Cat(Phi_jk)
+Z_true = matrix(NA, nrow = N, ncol = p) # true cluster assignment
+X = matrix(NA, nrow = N, ncol = p) # data matrix
+for (i in 1:N) {
+  Z_true[i,] = sample(1:p, 3, replace=TRUE, prob=Pi_true[i,])
+  for (j in 1:p) {
+    z = Z_true[i,j]
+    prob = Phi[[j]][z,]
+    X[i,j] = sample(1:length(prob), 1, replace = TRUE, prob = prob)
+  }
+}
+
+```
+
+### Visualization
+
+```{r}
+barplot(table(Z_true)/N/p, main = 'cluster assignment: z')
+```
+
+```{r}
+# 1st variable
+var = 1
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[Z_true[,var]==z,var])/sum(table(X[Z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z))
+}
+```
+
+
+### Mixed-Membership Model (MMM) MCMC
+
+```{r}
+
+```
+
+### Posterior Diagnostics
+
+```{r}
+
+```
+
+* * *
+
+
+
