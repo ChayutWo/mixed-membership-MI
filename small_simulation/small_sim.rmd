@@ -70,7 +70,7 @@ d2 = 3 # number of levels of 2st variable
 d3 = 3 # number of levels of 3st variable
 gamma_true = 2
 alpha_true = 1
-
+level = c(d1, d2, d3)
 
 # place holder
 Phi_1 = matrix(NA, nrow = K_true, ncol = d1) # multinomial parameter for 1st variable
@@ -112,7 +112,7 @@ for (k in 1:(K_true - 1)) {
   Beta_true[k] = V[k]*prod
   prod = prod*(1-V[k])
 }
-Beta_true[K_true] = 1-sum(Beta_true[1:K_true-1])
+Beta_true[K_true] = 1-sum(Beta_true[1:(K_true-1)])
 ```
 
 ```{r}
@@ -128,7 +128,7 @@ for (k in 1:(K_true - 1)) {
   Pi_true[,k] = u[,k]*prod
   prod = prod*(1-u[,k])
 }
-Pi_true[,K_true] = 1-rowSums(Pi_true[,1:K_true-1])
+Pi_true[,K_true] = 1-rowSums(Pi_true[,1:(K_true-1)])
 ```
 
 ```{r}
@@ -140,12 +140,12 @@ cat('Pi:', apply(Pi_true, MARGIN = 2, FUN = mean))
 ```{r}
 # Sample cluster assignment z_ij ~ Cat(Pi_i)
 # Sample observation x_ij|z_ij=k ~ Cat(Phi_jk)
-Z_true = matrix(NA, nrow = N, ncol = p) # true cluster assignment
+z_true = matrix(NA, nrow = N, ncol = p) # true cluster assignment
 X = matrix(NA, nrow = N, ncol = p) # data matrix
 for (i in 1:N) {
-  Z_true[i,] = sample(1:p, 3, replace=TRUE, prob=Pi_true[i,])
+  z_true[i,] = sample(1:p, 3, replace=TRUE, prob=Pi_true[i,])
   for (j in 1:p) {
-    z = Z_true[i,j]
+    z = z_true[i,j]
     prob = Phi[[j]][z,]
     X[i,j] = sample(1:length(prob), 1, replace = TRUE, prob = prob)
   }
@@ -153,10 +153,27 @@ for (i in 1:N) {
 
 ```
 
+```{r}
+# make MCAR
+missing_prob = 0.2
+X_miss = X
+for (col in 1:ncol(X)) {
+    missing_ind <- rbernoulli(N, p = missing_prob)
+    X_miss[missing_ind, col] <- NA
+}
+R = is.na(X_miss)
+# initial imputation
+for (col in 1:ncol(X)) {
+    missing_ind <- R[,col]
+    X_miss[missing_ind, col] <- sample(1:level[col], size = sum(missing_ind),
+                                       table(X_miss[R[,col]!=1,col]), replace = TRUE)
+}
+```
+
 ### Visualization
 
 ```{r}
-barplot(table(Z_true)/N/p, main = 'cluster assignment: z')
+barplot(table(z_true)/N/p, main = 'cluster assignment: z')
 ```
 
 ```{r}
@@ -164,22 +181,176 @@ barplot(table(Z_true)/N/p, main = 'cluster assignment: z')
 var = 1
 barplot(table(X[,var])/N, main = 'overall')
 for (z in 1:K_true) {
-  barplot(table(X[Z_true[,var]==z,var])/sum(table(X[Z_true[,var]==z,var])), 
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
         main = paste('variable:',var,'/', 'cluster:',z))
 }
 ```
 
+```{r}
+# 2nd variable
+var = 2
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z))
+}
+```
+
+```{r}
+# 2nd variable
+var = 3
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z))
+}
+```
 
 ### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
+# MCMC variables
+Mon = 5000
+burnin = 1000
+N = dim(X)[1]
+K = 3
+p = dim(X)[2]
+# hyperprior parameters
+# gamma ~ Gamma(a,b)
+a = 0.5
+b = 0.5
+# alpha0 ~ Gamma(c,d)
+c = 0.5
+d = 0.5
+# storage
+GAMMA = rep(NA, Mon-burnin)
+ALPHA0 = rep(NA, Mon-burnin)
+BETA = matrix(NA, nrow = Mon-burnin, ncol = K)
+PI = array(NA, c(N, K, Mon-burnin))
+```
 
+```{r}
+# initialization for x
+x_temp = X
+# initialization for z
+z_temp = matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p)
+# initialization for PHI
+phi_temp = list()
+for (j in 1:p) {
+  prob = rdirichlet(n = K, rep(1,level[j])) # Kxlevel matrix
+  phi_temp[[j]] = prob
+}
+# initialization for gamma and alpha0
+gamma_temp = 3
+alpha0_temp = alpha_true #use real value of alpha
+
+### use real value of beta and Vk ####
+Vk_temp = V 
+beta_temp = Beta_true
+######################################
+
+# initialization for u and Pi
+# Pi_i ~ DP(alpha_true, Beta_true) for i = 1,...,N
+Pi_temp = matrix(NA, N, K)
+u_temp = matrix(NA, N, K)
+u_temp[,K] = 1
+prod = array(1, N) # product of (1-u_il) for l<k
+# sample u_ik ~ Beta distribution
+# then, obtain Pi from u
+for (k in 1:(K - 1)) {
+  u_temp[,k] = rbeta(N, alpha0_temp*beta_temp[k], alpha0_temp*(1-sum(beta_temp[1:k])))
+  Pi_temp[,k] = u_temp[,k]*prod
+  prod = prod*(1-u_temp[,k])
+}
+Pi_temp[,K] = 1-rowSums(Pi_temp[,1:(K-1)])
+```
+
+```{r}
+for (trial in 1:Mon) {
+  # Update Vk and betak
+  
+  # Update u_ik and pi_ik
+  prod = array(1, N) # product of (1-u_il) for l<k
+  for (k in 1:(K-1)) {
+    # shape factors for posterior distribution of u
+    param1 = alpha0_temp*beta_temp[k] + rowSums(z_temp == k)
+    param2 = alpha0_temp*(1-sum(beta_temp[1:k])) + rowSums(z_temp > k)
+    # update u
+    u_temp[,k] = rbeta(N, shape1 = param1, shape2 = param2)
+    # update Pi
+    Pi_temp[,k] = u_temp[,k]*prod
+    prod = prod*(1-u_temp[,k])
+  }
+  Pi_temp[,K] = 1-rowSums(Pi_temp[,1:(K-1)])
+  # Update z_ij
+  for (j in 1:p) {
+    # get phi_j
+    prob = phi_temp[[j]]
+    var = x_temp[,j]
+    likelihood = t(prob[,var]) # NxK of phi_j_xij
+    full_prob_matrix = Pi_temp*likelihood
+    full_prob_matrix <- full_prob_matrix/matrix(rowSums(full_prob_matrix),nrow=N,ncol=K) # normalize
+    Ran_unif <- runif(N)
+    cumul <- full_prob_matrix%*%upper.tri(diag(ncol(full_prob_matrix)),diag=TRUE)
+    z_temp[,j] <- rowSums(Ran_unif>cumul) + 1L
+  }
+  # Update Phi_k
+  for (j in 1:p) {
+    for (k in 1:K) {
+      dj = level[j]
+      njk = rep(NA, dj) # number of response j in cluster k that answer different levels
+      for (lev in 1:dj) {
+        # number of response j that has level lev and under cluster k
+        njk[lev] = sum(x_temp[,j]==lev & z_temp[,j]==k)
+      }
+      phi_temp[[j]][k,] = rdirichlet(1,rep(1,level[j])+njk)
+    }
+  }
+  # Update gamma
+  gamma_temp = rgamma(1, a + K - 1, b - sum(log(1-Vk_temp[1:(K-1)])))
+  # Update alpha
+  
+  # Update x_ij
+
+  # Save posterior samples
+  if (trial>burnin) {
+    id = trial-burnin
+    GAMMA[id] = gamma_temp
+    ALPHA0[id] = alpha0_temp
+    BETA[id,] = beta_temp
+    PI[,,id] = Pi_temp
+  }
+  print(paste('finish runing MCMC trial:',trial))
+}
 ```
 
 ### Posterior Diagnostics
 
-```{r}
+```{r, echo = FALSE}
+gamma.mcmc <- mcmc(GAMMA, start = 1)
+summary(gamma.mcmc)
+```
 
+```{r}
+plot(gamma.mcmc)
+```
+
+```{r}
+autocorr.plot(gamma.mcmc)
+```
+
+
+```{r}
+# Convergence checking Pi a after accounting for burnin and thining
+i = 1
+thining = 5
+pi_df = cbind(PI[i,1,seq(1, Mon-burnin, thining)], 
+                PI[i,2,seq(1, Mon-burnin, thining)],
+                PI[i,3,seq(1, Mon-burnin, thining)])
+colnames(pi_df) = c('K=1', 'K=2', 'K=3')
+matplot(1:dim(pi_df)[1], pi_df, 
+        type = 'l', ylab = 'Pi', xlab = 'trials', 
+        main = 'Checking stability of sampled Pi: thining')
 ```
 
 * * *
