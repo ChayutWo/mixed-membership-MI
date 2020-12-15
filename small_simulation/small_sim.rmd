@@ -112,7 +112,7 @@ for (k in 1:(K_true - 1)) {
   Beta_true[k] = V[k]*prod
   prod = prod*(1-V[k])
 }
-Beta_true[K_true] = 1-sum(Beta_true[1:(K_true-1)])
+Beta_true[K_true] = V[K_true]*prod
 ```
 
 ```{r}
@@ -128,7 +128,7 @@ for (k in 1:(K_true - 1)) {
   Pi_true[,k] = u[,k]*prod
   prod = prod*(1-u[,k])
 }
-Pi_true[,K_true] = 1-rowSums(Pi_true[,1:(K_true-1)])
+Pi_true[,K_true] = u[, K_true]*prod
 ```
 
 ```{r}
@@ -143,7 +143,7 @@ cat('Pi:', apply(Pi_true, MARGIN = 2, FUN = mean))
 z_true = matrix(NA, nrow = N, ncol = p) # true cluster assignment
 X = matrix(NA, nrow = N, ncol = p) # data matrix
 for (i in 1:N) {
-  z_true[i,] = sample(1:p, 3, replace=TRUE, prob=Pi_true[i,])
+  z_true[i,] = sample(1:K_true, p, replace=TRUE, prob=Pi_true[i,])
   for (j in 1:p) {
     z = z_true[i,j]
     prob = Phi[[j]][z,]
@@ -209,11 +209,12 @@ for (z in 1:K_true) {
 ### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
+set.seed(1)
 # MCMC variables
 Mon = 5000
-burnin = 1000
+burnin = 2500
 N = dim(X)[1]
-K = 3
+K = 10
 p = dim(X)[2]
 # hyperprior parameters
 # gamma ~ Gamma(a,b)
@@ -227,6 +228,10 @@ GAMMA = rep(NA, Mon-burnin)
 ALPHA0 = rep(NA, Mon-burnin)
 BETA = matrix(NA, nrow = Mon-burnin, ncol = K)
 PI = array(NA, c(N, K, Mon-burnin))
+Z = array(NA, c(N, p, Mon-burnin))
+PHI1 = array(NA, c(K, d1, Mon-burnin))
+PHI2 = array(NA, c(K, d2, Mon-burnin))
+PHI3 = array(NA, c(K, d3, Mon-burnin))
 ```
 
 ```{r}
@@ -234,6 +239,12 @@ PI = array(NA, c(N, K, Mon-burnin))
 x_temp = X
 # initialization for z
 z_temp = matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p)
+nik = matrix(NA, N, K)
+for (i in 1:N) {
+  for (k in 1:K) {
+    nik[i,k] = sum(z_temp[i,]==k)
+  }
+}
 # initialization for PHI
 phi_temp = list()
 for (j in 1:p) {
@@ -241,16 +252,29 @@ for (j in 1:p) {
   phi_temp[[j]] = prob
 }
 # initialization for gamma and alpha0
-gamma_temp = 3
-alpha0_temp = alpha_true #use real value of alpha
+gamma_temp = 1
+alpha0_temp = 2 
 
-### use real value of beta and Vk ####
-Vk_temp = V 
-beta_temp = Beta_true
-######################################
+# initialization for Vk and Betak
+# Beta ~ GEM(gamma_temp)
+beta_temp = array(NA, dim = K)
+Vk_temp = array(NA, K)
+Vk_temp[K] = 1
+prod = 1 # product of (1-V_l) for l<k
+# Sample V_k from k = 1,...,K-1
+for (k in 1:(K - 1)) {
+  Vk_temp[k] = rbeta(1, 1,gamma_temp)
+  beta_temp[k] = Vk_temp[k]*prod
+  prod = prod*(1-Vk_temp[k])
+}
+beta_temp[K] = Vk_temp[K]*prod
+
+# initialization for auxiliary variables
+t_temp = array(NA, N)
+sik = matrix(0, N, K)
 
 # initialization for u and Pi
-# Pi_i ~ DP(alpha_true, Beta_true) for i = 1,...,N
+# Pi_i ~ DP(alpha_temp, Beta_temp) for i = 1,...,N
 Pi_temp = matrix(NA, N, K)
 u_temp = matrix(NA, N, K)
 u_temp[,K] = 1
@@ -262,27 +286,12 @@ for (k in 1:(K - 1)) {
   Pi_temp[,k] = u_temp[,k]*prod
   prod = prod*(1-u_temp[,k])
 }
-Pi_temp[,K] = 1-rowSums(Pi_temp[,1:(K-1)])
+Pi_temp[,K] = u_temp[,K]*prod
 ```
 
 ```{r}
 for (trial in 1:Mon) {
-  # Update Vk and betak
-  
-  # Update u_ik and pi_ik
-  prod = array(1, N) # product of (1-u_il) for l<k
-  for (k in 1:(K-1)) {
-    # shape factors for posterior distribution of u
-    param1 = alpha0_temp*beta_temp[k] + rowSums(z_temp == k)
-    param2 = alpha0_temp*(1-sum(beta_temp[1:k])) + rowSums(z_temp > k)
-    # update u
-    u_temp[,k] = rbeta(N, shape1 = param1, shape2 = param2)
-    # update Pi
-    Pi_temp[,k] = u_temp[,k]*prod
-    prod = prod*(1-u_temp[,k])
-  }
-  Pi_temp[,K] = 1-rowSums(Pi_temp[,1:(K-1)])
-  # Update z_ij
+  # Step 1: Update z_ij
   for (j in 1:p) {
     # get phi_j
     prob = phi_temp[[j]]
@@ -294,7 +303,17 @@ for (trial in 1:Mon) {
     cumul <- full_prob_matrix%*%upper.tri(diag(ncol(full_prob_matrix)),diag=TRUE)
     z_temp[,j] <- rowSums(Ran_unif>cumul) + 1L
   }
-  # Update Phi_k
+  # update nik
+  nik = matrix(NA, N, K)
+  for (i in 1:N) {
+    for (k in 1:K) {
+      nik[i,k] = sum(z_temp[i,]==k)
+    }
+  }
+  if (sum(is.na(nik))>0) {
+    print('error with nik')
+  }
+  # Step 2: Update Phi_k
   for (j in 1:p) {
     for (k in 1:K) {
       dj = level[j]
@@ -306,11 +325,69 @@ for (trial in 1:Mon) {
       phi_temp[[j]][k,] = rdirichlet(1,rep(1,level[j])+njk)
     }
   }
-  # Update gamma
-  gamma_temp = rgamma(1, a + K - 1, b - sum(log(1-Vk_temp[1:(K-1)])))
-  # Update alpha
+  # Step 3: Update Vk and betak
+  # sample auxiliary variable ti
+  t_temp = array(NA, N)
+  sik = matrix(0, N, K)
+  for (i in 1:N) {
+    t_temp[i] = rbeta(1,alpha0_temp,sum(nik[i,]))
+    # sample auxiliary variable sik
+    for (k in 1:K) {
+      if (nik[i,k]==0) {
+        sik[i,k]=0
+      }else{
+        for (l in 1:(nik[i,k])) {
+          prob = (alpha0_temp*beta_temp[k])/(alpha0_temp*beta_temp[k]+l-1)
+          sik[i,k] = sik[i,k]+rbernoulli(1,prob)
+        }
+      }
+    }
+  }
+  Vk_temp[K] = 1
+  prod = 1 
+  # Sample V_k from k = 1,...,K-1
+  for (k in 1:(K - 1)) {
+    Vk_temp[k] = rbeta(1, 1 + sum(sik[,k]), gamma_temp + sum(sik[,(k+1):K]))
+    # Prevent instability issue
+    if (Vk_temp[k]==0) Vk_temp[k] = 0.00001
+    if (Vk_temp[k]==1) Vk_temp[k] = 0.9999
+    # updaet beta_k
+    beta_temp[k] = Vk_temp[k]*prod
+    prod = prod*(1-Vk_temp[k])
+  }
+  # Prevent instability issue
+  if (1-sum(beta_temp[1:(K-1)])>=0) {
+    beta_temp[K] = 1-sum(beta_temp[1:(K-1)])
+  }else{
+    beta_temp[K] = 0
+  }
   
-  # Update x_ij
+  # Step 4: Update u_ik and pi_ik
+  prod = array(1, N) # product of (1-u_il) for l<k
+  for (k in 1:(K-1)) {
+    # shape factors for posterior distribution of u
+    param1 = alpha0_temp*beta_temp[k] + nik[,k]
+    param2 = alpha0_temp*(1-sum(beta_temp[1:k])) + rowSums(z_temp > k)
+    # update u
+    u_temp[,k] = rbeta(N, shape1 = param1, shape2 = param2)
+    # Prevent instability issue
+    idx = (u_temp[,k] == 1)
+    u_temp[idx, k] = 0.9999
+    idx = (u_temp[,k] == 0)
+    u_temp[idx, k] = 0.00001
+    # update Pi
+    Pi_temp[,k] = u_temp[,k]*prod
+    prod = prod*(1-u_temp[,k])
+  }
+  Pi_temp[,K] = 1-rowSums(Pi_temp[,1:(K-1)])
+  # Prevent instability issue
+  idx = (Pi_temp[,K] < 0)
+  Pi_temp[idx,K] = 0
+  # Step 5.1: Update gamma
+  gamma_temp = rgamma(1, a + K - 1, b - sum(log(1-Vk_temp[1:(K-1)])))
+  # Step 5.2: Update alpha
+  alpha0_temp = rgamma(1, c + sum(sik), d - sum(log(t_temp)))
+  # Step 6: Update x_ij
 
   # Save posterior samples
   if (trial>burnin) {
@@ -319,6 +396,10 @@ for (trial in 1:Mon) {
     ALPHA0[id] = alpha0_temp
     BETA[id,] = beta_temp
     PI[,,id] = Pi_temp
+    Z[,,id] = z_temp
+    PHI1[,,id] = phi_temp[[1]]
+    PHI2[,,id] = phi_temp[[2]]
+    PHI3[,,id] = phi_temp[[3]]
   }
   print(paste('finish runing MCMC trial:',trial))
 }
@@ -329,28 +410,84 @@ for (trial in 1:Mon) {
 ```{r, echo = FALSE}
 gamma.mcmc <- mcmc(GAMMA, start = 1)
 summary(gamma.mcmc)
-```
-
-```{r}
 plot(gamma.mcmc)
-```
-
-```{r}
 autocorr.plot(gamma.mcmc)
 ```
 
+```{r}
+alpha0.mcmc <- mcmc(ALPHA0, start = 1)
+summary(alpha0.mcmc)
+plot(alpha0.mcmc)
+autocorr.plot(alpha0.mcmc)
+```
 
 ```{r}
-# Convergence checking Pi a after accounting for burnin and thining
-i = 1
+# Convergence checking Beta a after accounting for burnin and thining
 thining = 5
-pi_df = cbind(PI[i,1,seq(1, Mon-burnin, thining)], 
-                PI[i,2,seq(1, Mon-burnin, thining)],
-                PI[i,3,seq(1, Mon-burnin, thining)])
-colnames(pi_df) = c('K=1', 'K=2', 'K=3')
-matplot(1:dim(pi_df)[1], pi_df, 
-        type = 'l', ylab = 'Pi', xlab = 'trials', 
-        main = 'Checking stability of sampled Pi: thining')
+beta_df = BETA[seq(1, Mon-burnin, thining),]
+matplot(1:dim(beta_df)[1], beta_df, 
+        type = 'l', ylab = 'Beta_k', xlab = 'trials', 
+        main = 'Checking stability of sampled Beta: thining=5')
+```
+
+```{r}
+# Check number of active cluster (not thining)
+Z_df = Z
+active_cluster = array(0, dim(Z_df)[3])
+for (idx in 1:dim(active_cluster)) {
+  for (k in 1:K) {
+    if (sum(Z_df[,,idx]==k)!=0) {
+      active_cluster[idx] = active_cluster[idx] + 1
+    }
+  }
+}
+plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active clusters',
+     xlab = 'trials', main = 'Checking number of active clusters during MCMC')
+```
+
+
+```{r}
+# Convergence checking for Phi
+for (k in 1:K) {
+  phi_df = cbind(PHI1[k,1,seq(1, Mon-burnin, thining)], 
+                 PHI1[k,2,seq(1, Mon-burnin, thining)])
+  colnames(phi_df) = c('d=1', 'd=2')
+  matplot(1:dim(phi_df)[1], phi_df, 
+          type = 'l', ylab = 'phi', xlab = 'trials', 
+          main = paste('Checking stability of sampled phi1: K=',k), ylim = c(0,1),
+          col = c('black', 'green'), lty = 1:2, lwd = 1)
+  legend('right', legend = colnames(phi_df), col = c('black', 'green'), lty = 1:2, lwd = 1)
+}
+```
+
+```{r}
+# Convergence checking for Phi
+for (k in 1:K) {
+  phi_df = cbind(PHI2[k,1,seq(1, Mon-burnin, thining)], 
+                 PHI2[k,2,seq(1, Mon-burnin, thining)],
+                 PHI2[k,3,seq(1, Mon-burnin, thining)])
+  colnames(phi_df) = c('d=1', 'd=2', 'd=3')
+  matplot(1:dim(phi_df)[1], phi_df, 
+          type = 'l', ylab = 'phi', xlab = 'trials', 
+          main = paste('Checking stability of sampled phi2: K=',k), ylim = c(0,1), 
+          col = c('black', 'green', 'red'), lty = 1:3, lwd = 1)
+  legend('right', legend = colnames(phi_df), col = c('black', 'green', 'red'), lty = 1:3, lwd = 1)
+}
+```
+
+```{r}
+# Convergence checking for Phi
+for (k in 1:K) {
+  phi_df = cbind(PHI3[k,1,seq(1, Mon-burnin, thining)], 
+                 PHI3[k,2,seq(1, Mon-burnin, thining)],
+                 PHI3[k,3,seq(1, Mon-burnin, thining)])
+  colnames(phi_df) = c('d=1', 'd=2', 'd=3')
+  matplot(1:dim(phi_df)[1], phi_df, 
+          type = 'l', ylab = 'phi', xlab = 'trials', 
+          main = paste('Checking stability of sampled phi3: K=',k), ylim = c(0,1), 
+          col = c('black', 'green', 'red'), lty = 1:3, lwd = 1)
+  legend('right', legend = colnames(phi_df), col = c('black', 'green', 'red'), lty = 1:3, lwd = 1)
+}
 ```
 
 * * *
