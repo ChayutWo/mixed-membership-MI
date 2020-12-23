@@ -242,7 +242,7 @@ z_temp = matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p)
 # nik = # of variables in cluster k for observation i
 nik = matrix(NA, N, K)
 for (k in 1:K) {
-  nik[,k] = rowSums(z_temp==k)
+    nik[,k] = rowSums(z_temp==k)
 }
 # initialization for PHI
 phi_temp = list()
@@ -304,8 +304,21 @@ sik = matrix(0, N, K)
 ```
 
 ```{r}
+z_time = 0
+nik_time = 0
+phi_time = 0
+aux_time = 0
+beta_time = 0
+pi_time = 0
+gamma_time = 0
+alpha_time = 0
+save_time = 0
+```
+
+```{r}
 for (trial in 1:Mon) {
   # Step 1: Update z_ij
+  start = Sys.time()
   for (j in 1:p) {
     # get phi_j
     prob = phi_temp[[j]]
@@ -317,12 +330,18 @@ for (trial in 1:Mon) {
     cumul <- full_prob_matrix%*%upper.tri(diag(ncol(full_prob_matrix)),diag=TRUE)
     z_temp[,j] <- rowSums(Ran_unif>cumul) + 1L
   }
+  z_time = z_time + (Sys.time() - start)
+  
   # update nik
+  start = Sys.time()
   nik = matrix(NA, N, K)
   for (k in 1:K) {
     nik[,k] = rowSums(z_temp==k)
   }
+  nik_time = nik_time + (Sys.time() - start)
+  
   # Step 2: Update Phi_k
+  start = Sys.time()
   for (j in 1:p) {
     for (k in 1:K) {
       dj = level[j]
@@ -334,8 +353,11 @@ for (trial in 1:Mon) {
       phi_temp[[j]][k,] = rdirichlet(1,rep(1,level[j])+njk)
     }
   }
+  phi_time = phi_time + (Sys.time() - start)
+  
   # Step 3: Update Vk and betak
   # sample auxiliary variable ti
+  start = Sys.time()
   t_temp = array(NA, N)
   sik = matrix(0, N, K)
   for (i in 1:N) {
@@ -345,13 +367,14 @@ for (trial in 1:Mon) {
       if (nik[i,k]==0) {
         sik[i,k]=0
       }else{
-        for (l in 1:(nik[i,k])) {
-          prob = (alpha0_temp*beta_temp[k])/(alpha0_temp*beta_temp[k]+l-1)
-          sik[i,k] = sik[i,k]+rbernoulli(1,prob)
-        }
+        prob = (alpha0_temp*beta_temp[k])/(alpha0_temp*beta_temp[k]+1:(nik[i,k])-1)
+        sik[i,k] = sum(rbernoulli(nik[i,k], prob))
       }
     }
   }
+  aux_time = aux_time + (Sys.time() - start)
+  
+  start = Sys.time()
   Vk_temp[K] = 1
   prod = 1 
   # Sample V_k from k = 1,...,K-1
@@ -373,7 +396,10 @@ for (trial in 1:Mon) {
   if (sum(beta_temp<0)>0) {
     print('error with beta < 0')
   }
+  beta_time = beta_time + (Sys.time() - start)
+  
   # Step 4: Update u_ik and pi_ik
+  start = Sys.time()
   prod = array(1, N) # product of (1-u_il) for l<k
   for (k in 1:(K-1)) {
     # shape factors for posterior distribution of u
@@ -394,15 +420,22 @@ for (trial in 1:Mon) {
   # Prevent instability issue
   idx = (Pi_temp[,K] < 0)
   Pi_temp[idx,K] = 0
+  pi_time = pi_time + (Sys.time() - start)
   
   # Step 5.1: Update gamma
+  start = Sys.time()
   gamma_temp = rgamma(1, a + K - 1, b - sum(log(1-Vk_temp[1:(K-1)])))
+  gamma_time = gamma_time + (Sys.time() - start)
+  
   # Step 5.2: Update alpha
+  start = Sys.time()
   alpha0_temp = rgamma(1, c + sum(sik), d - sum(log(t_temp)))
+  alpha_time = alpha_time + (Sys.time() - start)
   
   # Step 6: Update x_ij
 
   # Save posterior samples
+  start = Sys.time()
   if (trial>burnin) {
     id = trial-burnin
     GAMMA[id] = gamma_temp
@@ -414,6 +447,7 @@ for (trial in 1:Mon) {
     PHI2[,,id] = phi_temp[[2]]
     PHI3[,,id] = phi_temp[[3]]
   }
+  save_time = save_time + (Sys.time() - start)
   print(paste('finish runing MCMC trial:',trial))
 }
 ```
@@ -573,6 +607,16 @@ barplot(df, xlab = 'Category', beside = TRUE,
       ylim = c(0,0.5))
 ```
 
+```{r}
+# evaluate runtime
+total_time = z_time + nik_time + phi_time + aux_time + beta_time + pi_time + 
+  gamma_time + alpha_time + save_time
+data = as.numeric(c(z_time, nik_time, phi_time, aux_time, beta_time, pi_time, 
+                    gamma_time, alpha_time, save_time))/as.numeric(total_time)
+names(data) = c('z', 'nik', 'phi', 'aux', 'beta', 'pi', 'gamma', 'alpha', 'save')
+barplot(data, ylab = 'runtime portion', legend = TRUE, 
+        main = 'Runtime comparison for different parts of MCMC', ylim = c(0,1))
+```
 
 * * *
 
