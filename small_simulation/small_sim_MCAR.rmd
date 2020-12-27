@@ -229,6 +229,7 @@ ALPHA0 = rep(NA, Mon-burnin)
 BETA = matrix(NA, nrow = Mon-burnin, ncol = K)
 PI = array(NA, c(N, K, Mon-burnin))
 Z = array(NA, c(N, p, Mon-burnin))
+X_SAMPLE = array(NA, c(N, p, Mon-burnin))
 PHI1 = array(NA, c(K, d1, Mon-burnin))
 PHI2 = array(NA, c(K, d2, Mon-burnin))
 PHI3 = array(NA, c(K, d3, Mon-burnin))
@@ -236,8 +237,8 @@ PHI3 = array(NA, c(K, d3, Mon-burnin))
 
 ```{r}
 # initialization for x
-x_temp = X
-
+# x_temp = X
+x_temp = X_miss
 # initialization for z
 z_temp = matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p)
 # nik = # of variables in cluster k for observation i
@@ -402,7 +403,18 @@ for (trial in 1:Mon) {
   alpha0_temp = rgamma(1, c + sum(sik), d - sum(log(t_temp)))
   
   # Step 6: Update x_ij
-
+  for (i in 1:N) {
+    for (j in 1:p) {
+      if (R[i,j] == 1) {
+        # if the value is missing, sample from posterior discrete distribution
+        z_cur = z_temp[i,j]
+        prob = phi_temp[[j]][z_cur,]
+        prob_cum = prob%*%upper.tri(diag(length(prob)),diag=TRUE)
+        Ran_unif <- runif(1)
+        x_temp[i,j] <- sum(Ran_unif>prob_cum) + 1L
+      }
+    }
+  }
   # Save posterior samples
   if (trial>burnin) {
     id = trial-burnin
@@ -411,6 +423,7 @@ for (trial in 1:Mon) {
     BETA[id,] = beta_temp
     PI[,,id] = Pi_temp
     Z[,,id] = z_temp
+    X_SAMPLE[,,id] = x_temp
     PHI1[,,id] = phi_temp[[1]]
     PHI2[,,id] = phi_temp[[2]]
     PHI3[,,id] = phi_temp[[3]]
@@ -527,12 +540,15 @@ for (idx in 1:dim(Z_predictive)[3]) {
 ```
 
 ```{r}
-# Compare predictive distribution with true marginal distribution
+# Compare predictive distribution with true marginal distribution and posterior samples
+X_POST = X_SAMPLE[,,seq(1, Mon-burnin, thining)]
 for (var in 1:p) {
   true_pmf = table(X[,var])/N
   sampling_pmf = table(X_predictive[,var,])
   sampling_pmf = sampling_pmf/sum(sampling_pmf)
-  df = rbind(sampling_pmf, true_pmf)
+  imputed_pmf = table(X_POST[,var,])
+  imputed_pmf = imputed_pmf/sum(imputed_pmf)
+  df = rbind(sampling_pmf, imputed_pmf, true_pmf)
   barplot(df, xlab = 'Category', beside = TRUE, 
         legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: j =', var))
 }
@@ -544,7 +560,9 @@ true_pmf = table(X[,1], X[,2])
 true_pmf = c(true_pmf/sum(true_pmf))
 sampling_pmf = table(X_predictive[,1,], X_predictive[,2,])
 sampling_pmf = c(sampling_pmf/sum(sampling_pmf))
-df = rbind(sampling_pmf, true_pmf)
+imputed_pmf = table(X_POST[,1,], X_POST[,2,])
+imputed_pmf = c(imputed_pmf/sum(imputed_pmf))
+df = rbind(sampling_pmf, imputed_pmf, true_pmf)
 barplot(df, xlab = 'Category', beside = TRUE, 
       legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 1,2'),
       ylim = c(0,0.5))
@@ -556,7 +574,9 @@ true_pmf = table(X[,2], X[,3])
 true_pmf = c(true_pmf/sum(true_pmf))
 sampling_pmf = table(X_predictive[,2,], X_predictive[,3,])
 sampling_pmf = c(sampling_pmf/sum(sampling_pmf))
-df = rbind(sampling_pmf, true_pmf)
+imputed_pmf = table(X_POST[,2,], X_POST[,3,])
+imputed_pmf = c(imputed_pmf/sum(imputed_pmf))
+df = rbind(sampling_pmf, imputed_pmf, true_pmf)
 barplot(df, xlab = 'Category', beside = TRUE, 
       legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 2,3'),
       ylim = c(0,0.5))
@@ -568,12 +588,13 @@ true_pmf = table(X[,1], X[,3])
 true_pmf = c(true_pmf/sum(true_pmf))
 sampling_pmf = table(X_predictive[,1,], X_predictive[,3,])
 sampling_pmf = c(sampling_pmf/sum(sampling_pmf))
-df = rbind(sampling_pmf, true_pmf)
+imputed_pmf = table(X_POST[,1,], X_POST[,3,])
+imputed_pmf = c(imputed_pmf/sum(imputed_pmf))
+df = rbind(sampling_pmf, imputed_pmf, true_pmf)
 barplot(df, xlab = 'Category', beside = TRUE, 
       legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 1,3'),
       ylim = c(0,0.5))
 ```
-
 
 * * *
 
