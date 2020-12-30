@@ -209,9 +209,9 @@ for (z in 1:K_true) {
 ### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
-set.seed(0)
+set.seed(2)
 # MCMC variables
-Mon = 15000
+Mon = 10000
 burnin = 5000
 N = dim(X)[1]
 K = 40
