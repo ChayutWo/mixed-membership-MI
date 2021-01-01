@@ -211,8 +211,10 @@ for (z in 1:K_true) {
 ```{r}
 set.seed(2)
 # MCMC variables
-Mon = 10000
-burnin = 5000
+Mon = 20000
+burnin = 10000
+thining = 50
+
 N = dim(X)[1]
 K = 40
 p = dim(X)[2]
@@ -224,15 +226,15 @@ b = 0.25
 c = 0.25
 d = 0.25
 # storage
-GAMMA = rep(NA, Mon-burnin)
-ALPHA0 = rep(NA, Mon-burnin)
-BETA = matrix(NA, nrow = Mon-burnin, ncol = K)
-PI = array(NA, c(N, K, Mon-burnin))
-Z = array(NA, c(N, p, Mon-burnin))
-X_SAMPLE = array(NA, c(N, p, Mon-burnin))
-PHI1 = array(NA, c(K, d1, Mon-burnin))
-PHI2 = array(NA, c(K, d2, Mon-burnin))
-PHI3 = array(NA, c(K, d3, Mon-burnin))
+GAMMA = rep(NA, (Mon-burnin)/thining)
+ALPHA0 = rep(NA, (Mon-burnin)/thining)
+BETA = matrix(NA, nrow = (Mon-burnin)/thining, ncol = K)
+PI = array(NA, c(N, K, (Mon-burnin)/thining))
+Z = array(NA, c(N, p, (Mon-burnin)/thining))
+X_SAMPLE = array(NA, c(N, p, (Mon-burnin)/thining))
+PHI1 = array(NA, c(K, d1, (Mon-burnin)/thining))
+PHI2 = array(NA, c(K, d2, (Mon-burnin)/thining))
+PHI3 = array(NA, c(K, d3, (Mon-burnin)/thining))
 ```
 
 ```{r}
@@ -287,6 +289,7 @@ sik = matrix(0, N, K)
 ```
 
 ```{r}
+id = 0
 for (trial in 1:Mon) {
   # Step 1: Update z_ij
   for (j in 1:p) {
@@ -382,8 +385,8 @@ for (trial in 1:Mon) {
     }
   }
   # Save posterior samples
-  if (trial>burnin) {
-    id = trial-burnin
+  if ((trial>burnin) && ((trial-burnin)%%thining==1) ) {
+    id = id + 1
     GAMMA[id] = gamma_temp
     ALPHA0[id] = alpha0_temp
     BETA[id,] = beta_temp
@@ -401,15 +404,14 @@ for (trial in 1:Mon) {
 ### Posterior Diagnostics
 
 ```{r, echo = FALSE}
-thining = 25
-gamma.mcmc <- mcmc(GAMMA[seq(1, Mon-burnin, thining)], start = 1)
+gamma.mcmc <- mcmc(GAMMA, start = 1)
 summary(gamma.mcmc)
 plot(gamma.mcmc)
 autocorr.plot(gamma.mcmc)
 ```
 
 ```{r}
-alpha0.mcmc <- mcmc(ALPHA0[seq(1, Mon-burnin, thining)], start = 1)
+alpha0.mcmc <- mcmc(ALPHA0, start = 1)
 summary(alpha0.mcmc)
 plot(alpha0.mcmc)
 autocorr.plot(alpha0.mcmc)
@@ -417,16 +419,16 @@ autocorr.plot(alpha0.mcmc)
 
 ```{r}
 # Convergence checking Beta a after accounting for burnin and thining
-beta_df = BETA[seq(1, Mon-burnin, thining),]
+beta_df = BETA
 colnames(beta_df) <- 1:K
 matplot(1:dim(beta_df)[1], beta_df, 
         type = 'l', ylab = 'Beta_k', xlab = 'trials', 
-        main = 'Checking stability of sampled Beta: thining=5')
+        main = 'Checking stability of sampled Beta')
 
 ```
 
 ```{r}
-# Check number of active cluster (not thining)
+# Check number of active cluster 
 Z_df = Z
 active_cluster = array(0, dim(Z_df)[3])
 for (idx in 1:dim(active_cluster)) {
@@ -445,8 +447,8 @@ plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active
 ```{r, fig.width=3, fig.height=2}
 # Convergence checking for Phi1
 for (k in 1:K) {
-  phi_df = cbind(PHI1[k,1,seq(1, Mon-burnin, thining)], 
-                 PHI1[k,2,seq(1, Mon-burnin, thining)])
+  phi_df = cbind(PHI1[k,1,], 
+                 PHI1[k,2,])
   colnames(phi_df) = c('d=1', 'd=2')
   matplot(1:dim(phi_df)[1], phi_df, 
           type = 'l', ylab = 'phi', xlab = 'trials', 
@@ -459,9 +461,9 @@ for (k in 1:K) {
 ```{r}
 # Convergence checking for Phi2
 for (k in 1:K) {
-  phi_df = cbind(PHI2[k,1,seq(1, Mon-burnin, thining)], 
-                 PHI2[k,2,seq(1, Mon-burnin, thining)],
-                 PHI2[k,3,seq(1, Mon-burnin, thining)])
+  phi_df = cbind(PHI2[k,1,], 
+                 PHI2[k,2,],
+                 PHI2[k,3,])
   colnames(phi_df) = c('d=1', 'd=2', 'd=3')
   matplot(1:dim(phi_df)[1], phi_df, 
           type = 'l', ylab = 'phi', xlab = 'trials', 
@@ -474,9 +476,9 @@ for (k in 1:K) {
 ```{r}
 # Convergence checking for Phi3
 for (k in 1:K) {
-  phi_df = cbind(PHI3[k,1,seq(1, Mon-burnin, thining)], 
-                 PHI3[k,2,seq(1, Mon-burnin, thining)],
-                 PHI3[k,3,seq(1, Mon-burnin, thining)])
+  phi_df = cbind(PHI3[k,1,], 
+                 PHI3[k,2,],
+                 PHI3[k,3,])
   colnames(phi_df) = c('d=1', 'd=2', 'd=3')
   matplot(1:dim(phi_df)[1], phi_df, 
           type = 'l', ylab = 'phi', xlab = 'trials', 
@@ -488,18 +490,18 @@ for (k in 1:K) {
 
 ```{r}
 # Evaluate posterior predictive distribution
-Z_predictive = array(NA, c(N,p,length(seq(1, Mon-burnin, thining))))
-X_predictive = array(NA, c(N,p,length(seq(1, Mon-burnin, thining))))
+Z_predictive = array(NA, c(N,p,(Mon-burnin)/thining))
+X_predictive = array(NA, c(N,p,(Mon-burnin)/thining))
 for (idx in 1:dim(Z_predictive)[3]) {
   for (i in 1:N) {
     # Sample predictive distribution: Z
-    prob = PI[i,,seq(1, Mon-burnin, thining)[idx]]
+    prob = PI[i,,idx]
     Z_predictive[i,,idx] = sample(1:K, p, replace=TRUE, prob)
     for (j in 1:p) {
       z = Z_predictive[i,j,idx]
-      if (j==1) prob = PHI1[z,,seq(1, Mon-burnin, thining)[idx]]
-      if (j==2) prob = PHI2[z,,seq(1, Mon-burnin, thining)[idx]]
-      if (j==3) prob = PHI3[z,,seq(1, Mon-burnin, thining)[idx]]
+      if (j==1) prob = PHI1[z,,idx]
+      if (j==2) prob = PHI2[z,,idx]
+      if (j==3) prob = PHI3[z,,idx]
       # Sample predictive distribution: X
       X_predictive[i,j,idx] = sample(1:length(prob), size = 1, replace = TRUE,  prob)
     }
@@ -510,7 +512,7 @@ for (idx in 1:dim(Z_predictive)[3]) {
 
 ```{r}
 # Compare predictive distribution with true marginal distribution and posterior samples
-X_POST = X_SAMPLE[,,seq(1, Mon-burnin, thining)]
+X_POST = X_SAMPLE
 for (var in 1:p) {
   true_pmf = table(X[,var])/N
   sampling_pmf = table(X_predictive[,var,])
@@ -538,7 +540,7 @@ barplot(df, xlab = 'Category', beside = TRUE,
 ```
 
 ```{r}
-# Evaluate joint pmf: 1,2
+# Evaluate joint pmf: 2,3
 true_pmf = table(X[,2], X[,3])
 true_pmf = c(true_pmf/sum(true_pmf))
 sampling_pmf = table(X_predictive[,2,], X_predictive[,3,])
@@ -552,7 +554,7 @@ barplot(df, xlab = 'Category', beside = TRUE,
 ```
 
 ```{r}
-# Evaluate joint pmf: 1,2
+# Evaluate joint pmf: 1,3
 true_pmf = table(X[,1], X[,3])
 true_pmf = c(true_pmf/sum(true_pmf))
 sampling_pmf = table(X_predictive[,1,], X_predictive[,3,])
@@ -564,9 +566,6 @@ barplot(df, xlab = 'Category', beside = TRUE,
       legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 1,3'),
       ylim = c(0,0.5))
 ```
-
-
-
 * * *
 
 
