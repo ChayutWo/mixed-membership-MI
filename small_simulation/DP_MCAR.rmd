@@ -204,7 +204,7 @@ for (z in 1:K_true) {
 ### Dirichlet Process Mixture of Product of Multinomial MCMC
 
 ```{r}
-set.seed(2)
+set.seed(1)
 # Convert data type to factor
 data_df <- data.frame(X_miss)
 data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
@@ -213,7 +213,7 @@ data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
 Mon = 10000
 burnin = 10000
 thining = 50
-K = 40
+K = 60
 a = 0.25
 b = 0.25
 # 1. Create and initialize the Rcpp_Lcm model object
@@ -261,15 +261,6 @@ plot(alpha0.mcmc)
 autocorr.plot(alpha0.mcmc)
 ```
 
-```{r}
-# Convergence checking Beta a after accounting for burnin and thining
-beta_df = BETA
-colnames(beta_df) <- 1:K
-matplot(1:dim(beta_df)[1], beta_df, 
-        type = 'l', ylab = 'Beta_k', xlab = 'trials', 
-        main = 'Checking stability of sampled Beta')
-
-```
 
 ```{r}
 # Check number of active cluster 
@@ -280,29 +271,7 @@ plot(1:length(k_star), k_star, xlab = 'trials',
 
 
 ```{r}
-# Evaluate posterior predictive distribution
-Z_predictive = array(NA, c(N,p,(Mon-burnin)/thining))
-X_predictive = array(NA, c(N,p,(Mon-burnin)/thining))
-for (idx in 1:dim(Z_predictive)[3]) {
-  for (i in 1:N) {
-    # Sample predictive distribution: Z
-    prob = PI[i,,idx]
-    Z_predictive[i,,idx] = sample(1:K, p, replace=TRUE, prob)
-    for (j in 1:p) {
-      z = Z_predictive[i,j,idx]
-      if (j==1) prob = PHI1[z,,idx]
-      if (j==2) prob = PHI2[z,,idx]
-      if (j==3) prob = PHI3[z,,idx]
-      # Sample predictive distribution: X
-      X_predictive[i,j,idx] = sample(1:length(prob), size = 1, replace = TRUE,  prob)
-    }
-  }
-  print(paste('finish sampling: ', idx))
-}
-```
-
-```{r}
-# Compare predictive distribution with true marginal distribution and posterior samples
+# Compare true marginal distribution with posterior samples
 for (var in 1:p) {
   true_pmf = table(X[,var])/N
   imputed_pmf = table(X_POST[,var,])
