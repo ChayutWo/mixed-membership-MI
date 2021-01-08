@@ -1,6 +1,6 @@
 
 ---
-title: "DP for MI - Simulation example with 30% MCAR"
+title: "Baseline for MI - Simulation example with 30% MCAR"
 output:
   pdf_document: default
   html_document:
@@ -41,7 +41,6 @@ library(mvtnorm)
 library(MCMCpack)
 library(mnormt)
 library(coda)
-library(NPBayesImputeCat)
 ```
 
 * * *
@@ -117,41 +116,17 @@ Beta_true[K_true] = 1-sum(Beta_true[1:(K_true-1)])
 ```
 
 ```{r}
-# Pi_i ~ DP(alpha_true, Beta_true) for i = 1,...,N
-Pi_true = matrix(NA, N, K_true)
-u = matrix(NA, N, K_true)
-u[,K_true] = 1
-prod = array(1, N) # product of (1-u_il) for l<k
-# sample u_ik ~ Beta distribution
-# then, obtain Pi from u
-for (k in 1:(K_true - 1)) {
-  u[,k] = rbeta(N, alpha_true*Beta_true[k], alpha_true*(1-sum(Beta_true[1:k])))
-  Pi_true[,k] = u[,k]*prod
-  prod = prod*(1-u[,k])
-}
-Pi_true[,K_true] = 1-rowSums(Pi_true[,1:(K_true-1)])
-```
-
-```{r}
-# Check the mean of Pi from DP
-cat('Beta:', Beta_true,'\n')
-cat('Pi:', apply(Pi_true, MARGIN = 2, FUN = mean))
-```
-
-```{r}
-# Sample cluster assignment z_ij ~ Cat(Pi_i)
-# Sample observation x_ij|z_ij=k ~ Cat(Phi_jk)
-z_true = matrix(NA, nrow = N, ncol = p) # true cluster assignment
+# Sample cluster assignment z_i ~ Cat(Beta)
+# Sample observation x_ij|z_i=k ~ Cat(Phi_jk)
+z_true = sample(1:K_true, N, replace = TRUE, prob = Beta_true) # true cluster assignment
 X = matrix(NA, nrow = N, ncol = p) # data matrix
 for (i in 1:N) {
-  z_true[i,] = sample(1:K_true, p, replace=TRUE, prob=Pi_true[i,])
+  z = z_true[i]
   for (j in 1:p) {
-    z = z_true[i,j]
     prob = Phi[[j]][z,]
     X[i,j] = sample(1:length(prob), 1, replace = TRUE, prob = prob)
   }
 }
-
 ```
 
 ```{r}
@@ -168,7 +143,7 @@ R = is.na(X_miss)
 ### Visualization
 
 ```{r}
-barplot(table(z_true)/N/p, main = 'cluster assignment: z', ylim = c(0,1))
+barplot(table(z_true)/N, main = 'cluster assignment: z', ylim = c(0,1))
 ```
 
 ```{r}
@@ -176,7 +151,7 @@ barplot(table(z_true)/N/p, main = 'cluster assignment: z', ylim = c(0,1))
 var = 1
 barplot(table(X[,var])/N, main = 'overall')
 for (z in 1:K_true) {
-  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+  barplot(table(X[z_true==z,var])/sum(table(X[z_true==z,var])), 
         main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
 }
 ```
@@ -186,89 +161,51 @@ for (z in 1:K_true) {
 var = 2
 barplot(table(X[,var])/N, main = 'overall')
 for (z in 1:K_true) {
-  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+  barplot(table(X[z_true==z,var])/sum(table(X[z_true==z,var])), 
         main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
 }
 ```
 
 ```{r}
-# 2nd variable
+# 3rd variable
 var = 3
 barplot(table(X[,var])/N, main = 'overall')
 for (z in 1:K_true) {
-  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+  barplot(table(X[z_true==z,var])/sum(table(X[z_true==z,var])), 
         main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
 }
 ```
 
-### Dirichlet Process Mixture of Product of Multinomial MCMC
+### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
 set.seed(1)
-# Convert data type to factor
-data_df <- data.frame(X_miss)
-data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
-
 # MCMC variables
-Mon = 10000
+Mon = 20000
 burnin = 10000
 thining = 50
-K = 60
-a = 0.25
-b = 0.25
-# 1. Create and initialize the Rcpp_Lcm model object
-model = CreateModel(X = data_df, MCZ = NULL, K = K, Nmax = 0, 
-                    aalpha = a, balpha = b)
+n_samples = (Mon-burnin)/thining
 
-# 2. Set tracer
-model$SetTrace(c('k_star', 'psi', 'ImputedX', 'alpha'), Mon)
-  
-# 3. Run model using Run(burnin, iter, thinning)
-model$Run(burnin, Mon, thining)
+N = dim(X)[1]
+p = dim(X)[2]
+
+# storage
+X_POST = array(NA, c(N, p, n_samples))
+
+# Impute by using marginal probability
+for (i in 1:n_samples) {
+  X_POST[,,i] <- X_miss
+  for (col in 1:ncol(X)) {
+    missing_ind <- R[,col]
+    X_POST[missing_ind, col, i] <- sample(1:level[col], size = sum(missing_ind),
+                                       table(X_miss[R[,col]!=1,col]), replace = TRUE)
+  }
+}
 ```
 
 
 
 ### Posterior Diagnostics
-
-
-```{r}
-X_POST = array(NA, c(N, p, Mon/thining))
-# Extract results
-output <- model$GetTrace()
-k_star <- output$k_star
-psi <- output$psi
-alpha <- output$alpha
-imputed_df <- output$ImputedX # size no. samples x (N*p)
-
-n_imputations = Mon/thining
-imputation_index = as.integer(seq(1,dim(imputed_df)[1], length.out = n_imputations))
-
-for (i in 1:length(imputation_index)) {
-    index = imputation_index[i]
-    # need to plus 1 here because the class index of DP function starts at 0
-    d = imputed_df[index,] + 1
-    dim(d) = dim(t(data_df))
-    X_POST[,,i] = t(d)
-}
-```
-
-
-```{r}
-alpha0.mcmc <- mcmc(alpha, start = 1)
-summary(alpha0.mcmc)
-plot(alpha0.mcmc)
-autocorr.plot(alpha0.mcmc)
-```
-
-
-```{r}
-# Check number of active cluster 
-plot(1:length(k_star), k_star, xlab = 'trials', 
-     ylab = 'number of active clusters', 
-     main = 'Number of clusters used over time', ylim = c(0,K))
-```
-
 
 ```{r}
 # Compare true marginal distribution with posterior samples
