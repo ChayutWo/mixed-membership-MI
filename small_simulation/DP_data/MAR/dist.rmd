@@ -1,6 +1,6 @@
 
 ---
-title: "DP for MI - Simulation example with 30% MCAR"
+title: "Baseline for MI - Simulation example with 30% MCAR"
 output:
   pdf_document: default
   html_document:
@@ -41,7 +41,6 @@ library(mvtnorm)
 library(MCMCpack)
 library(mnormt)
 library(coda)
-library(NPBayesImputeCat)
 ```
 
 * * *
@@ -186,121 +185,21 @@ for (z in 1:K_true) {
 }
 ```
 
-### Dirichlet Process Mixture of Product of Multinomial MCMC
-
-```{r}
-set.seed(1)
-# Convert data type to factor
-data_df <- data.frame(X_miss)
-data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
-
-# MCMC variables
-Mon = 10000
-burnin = 10000
-thining = 50
-K = 60
-a = 0.25
-b = 0.25
-# 1. Create and initialize the Rcpp_Lcm model object
-model = CreateModel(X = data_df, MCZ = NULL, K = K, Nmax = 0, 
-                    aalpha = a, balpha = b)
-
-# 2. Set tracer
-model$SetTrace(c('k_star', 'psi', 'ImputedX', 'alpha'), Mon)
-  
-# 3. Run model using Run(burnin, iter, thinning)
-model$Run(burnin, Mon, thining)
-```
 
 
 
 ### Posterior Diagnostics
 
-
-```{r}
-X_POST = array(NA, c(N, p, Mon/thining))
-# Extract results
-output <- model$GetTrace()
-k_star <- output$k_star
-psi <- output$psi
-alpha <- output$alpha
-imputed_df <- output$ImputedX # size no. samples x (N*p)
-
-n_imputations = Mon/thining
-imputation_index = as.integer(seq(1,dim(imputed_df)[1], length.out = n_imputations))
-
-for (i in 1:length(imputation_index)) {
-    index = imputation_index[i]
-    # need to plus 1 here because the class index of DP function starts at 0
-    d = imputed_df[index,] + 1
-    dim(d) = dim(t(data_df))
-    X_POST[,,i] = t(d)
-}
-```
-
-
-```{r}
-alpha0.mcmc <- mcmc(alpha, start = 1)
-summary(alpha0.mcmc)
-plot(alpha0.mcmc)
-autocorr.plot(alpha0.mcmc)
-```
-
-
-```{r}
-# Check number of active cluster 
-plot(1:length(k_star), k_star, xlab = 'trials', 
-     ylab = 'number of active clusters', 
-     main = 'Number of clusters used over time', ylim = c(0,K))
-```
-
-
 ```{r}
 # Compare true marginal distribution with posterior samples
 for (var in 1:p) {
   true_pmf = table(X[,var])/N
-  imputed_pmf = table(X_POST[,var,])
-  imputed_pmf = imputed_pmf/sum(imputed_pmf)
-  df = rbind(imputed_pmf, true_pmf)
+  observed_pmf = table(X_miss[R[,var]!=1,var])
+  observed_pmf = observed_pmf/sum(observed_pmf)
+  df = rbind(observed_pmf, true_pmf)
   barplot(df, xlab = 'Category', beside = TRUE, 
-        legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: j =', var))
+        legend = TRUE, main = paste('Observed pmf vs True pmf: j =', var), ylim = c(0,1))
 }
-```
-
-```{r}
-# Evaluate joint pmf: 1,2
-true_pmf = table(X[,1], X[,2])
-true_pmf = c(true_pmf/sum(true_pmf))
-imputed_pmf = table(X_POST[,1,], X_POST[,2,])
-imputed_pmf = c(imputed_pmf/sum(imputed_pmf))
-df = rbind(imputed_pmf, true_pmf)
-barplot(df, xlab = 'Category', beside = TRUE, 
-      legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 1,2'),
-      ylim = c(0,0.5))
-```
-
-```{r}
-# Evaluate joint pmf: 2,3
-true_pmf = table(X[,2], X[,3])
-true_pmf = c(true_pmf/sum(true_pmf))
-imputed_pmf = table(X_POST[,2,], X_POST[,3,])
-imputed_pmf = c(imputed_pmf/sum(imputed_pmf))
-df = rbind(imputed_pmf, true_pmf)
-barplot(df, xlab = 'Category', beside = TRUE, 
-      legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 2,3'),
-      ylim = c(0,0.5))
-```
-
-```{r}
-# Evaluate joint pmf: 1,3
-true_pmf = table(X[,1], X[,3])
-true_pmf = c(true_pmf/sum(true_pmf))
-imputed_pmf = table(X_POST[,1,], X_POST[,3,])
-imputed_pmf = c(imputed_pmf/sum(imputed_pmf))
-df = rbind(imputed_pmf, true_pmf)
-barplot(df, xlab = 'Category', beside = TRUE, 
-      legend = TRUE, main = paste('Posterior Predictive Distribution Assessment: joint pmf 1,3'),
-      ylim = c(0,0.5))
 ```
 * * *
 
