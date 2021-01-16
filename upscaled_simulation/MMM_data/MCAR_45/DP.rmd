@@ -1,0 +1,416 @@
+
+---
+title: "Mixed Membership Model for MI - Simulation example with 45% MCAR"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(knitr)
+library(dplyr)
+library(arm)
+library(pROC)
+library(tidyverse)
+library(MASS)
+library(tigerstats)
+library(leaps)
+library(car)
+library(rms)
+require(caret)
+require(e1071)
+library(lme4) 
+library(lattice)
+library(broom)
+library(boot)
+library(ggplot2)
+library(cobalt)
+require(tidyverse)
+require(rstanarm)
+require(magrittr)
+require(rstan)
+require(MCMCpack)
+library(abind)
+library(matrixStats)
+library(truncnorm)
+library(mvtnorm)
+library(MCMCpack)
+library(mnormt)
+library(coda)
+library(NPBayesImputeCat)
+```
+
+* * *
+### Generate small dataset
+
+Settings 
+- N = 2500 surveyed subjects
+- K = 5 clusters
+- p = 5 questions/variables
+- d1 = 2 choices, d2 = d3 = d4 = 3 choices, d5 = 5 choices
+- $\gamma$ = 2 and $\alpha_0$ = 1 for DP generative process
+
+Generative process
+- $\beta|\gamma \sim GEM(\gamma)$
+- $\pi_i|\alpha_0 \sim DP(\alpha_0, \beta)$ for i = 1,...,N
+- $z_{ij}|\pi_i \sim Cat(\pi_i)$ for i = 1,...,N and j = 1,...,p
+- $x_{ij}|z_{ij}=k \sim Cat(\Phi^{(j)}_k)$ for i = 1,...,N and j=1,...,p
+
+```{r}
+set.seed(1)
+# parameter setup
+N = 2500 # number of surveyed subjects
+K_true = 5 # number of true clusteres
+p = 5 # number of survey questions
+d1 = 2 # number of levels of 1st variable
+d2 = 3 # number of levels of 2st variable
+d3 = 3 # number of levels of 3st variable
+d4 = 3
+d5 = 5
+gamma_true = 2
+alpha_true = 1
+level = c(d1, d2, d3, d4, d5)
+
+# place holder
+Phi_1 = matrix(NA, nrow = K_true, ncol = d1) # multinomial parameter for 1st variable
+Phi_2 = matrix(NA, nrow = K_true, ncol = d2) # multinomial parameter for 2nd variable
+Phi_3 = matrix(NA, nrow = K_true, ncol = d3) # multinomial parameter for 3rd variable
+Phi_4 = matrix(NA, nrow = K_true, ncol = d4) # multinomial parameter for 4th variable
+Phi_5 = matrix(NA, nrow = K_true, ncol = d5) # multinomial parameter for 5th variable
+```
+
+```{r}
+# Phi parameter for different clusters and different variables
+# size #clusterx#levels
+
+# 1st variable (d1 = 2)
+Phi_1[,1] = c(0.1, 0.3, 0.5, 0.7, 0.9)
+Phi_1[,2] = 1 - Phi_1[,1]
+
+# 2nd variable (d2 = 3)
+Phi_2[,1] = c(0.1, 0.1, 0.8, 0.25, 0.5)
+Phi_2[,2] = c(0.1, 0.8, 0.1, 0.5, 0.25)
+Phi_2[,3] = 1 - Phi_2[,1] - Phi_2[,2]
+
+# 3rd variable (d3 = 3)
+Phi_3[,1] = c(0.1, 0.8, 0.1, 0.25, 0.25)
+Phi_3[,2] = c(0.8, 0.1, 0.1, 0.25, 0.5)
+Phi_3[,3] = 1 - Phi_3[,1] - Phi_3[,2]
+
+# 4th variable (d4 = 3)
+Phi_4[,1] = c(0.8, 0.1, 0.1, 0.5, 0.25)
+Phi_4[,2] = c(0.1, 0.1, 0.8, 0.25, 0.5)
+Phi_4[,3] = 1 - Phi_4[,1] - Phi_4[,2]
+
+# 5th variable (d5= 5)
+Phi_5[,1] = c(0.5, 0.1, 0.1, 0.1, 0.2)
+Phi_5[,2] = c(0.2, 0.5, 0.1, 0.1, 0.1)
+Phi_5[,3] = c(0.1, 0.2, 0.5, 0.1, 0.1)
+Phi_5[,4] = c(0.1, 0.1, 0.2, 0.5, 0.1)
+Phi_5[,5] = 1 - Phi_5[,1] - Phi_5[,2] - Phi_5[,3] - Phi_5[,4]
+
+Phi = list(Phi_1, Phi_2, Phi_3, Phi_4, Phi_5)
+```
+
+```{r}
+# Beta ~ GEM(gamma_true)
+Beta_true = array(NA, dim = K_true)
+V = array(NA, K_true)
+V[K_true] = 1
+prod = 1 # product of (1-V_l) for l<k
+# Sample V_k from k = 1,...,K-1
+for (k in 1:(K_true - 1)) {
+  V[k] = rbeta(1, 1, gamma_true) # Vk ~ Beta(1, gamma)
+  Beta_true[k] = V[k]*prod
+  prod = prod*(1-V[k])
+}
+Beta_true[K_true] = 1-sum(Beta_true[1:(K_true-1)])
+```
+
+```{r}
+# Pi_i ~ DP(alpha_true, Beta_true) for i = 1,...,N
+Pi_true = matrix(NA, N, K_true)
+u = matrix(NA, N, K_true)
+u[,K_true] = 1
+prod = array(1, N) # product of (1-u_il) for l<k
+# sample u_ik ~ Beta distribution
+# then, obtain Pi from u
+for (k in 1:(K_true - 1)) {
+  u[,k] = rbeta(N, alpha_true*Beta_true[k], alpha_true*(1-sum(Beta_true[1:k])))
+  Pi_true[,k] = u[,k]*prod
+  prod = prod*(1-u[,k])
+}
+Pi_true[,K_true] = 1-rowSums(Pi_true[,1:(K_true-1)])
+```
+
+```{r}
+# Check the mean of Pi from DP
+cat('Beta:', Beta_true,'\n')
+cat('Pi:', apply(Pi_true, MARGIN = 2, FUN = mean))
+```
+
+```{r}
+# Sample cluster assignment z_ij ~ Cat(Pi_i)
+# Sample observation x_ij|z_ij=k ~ Cat(Phi_jk)
+z_true = matrix(NA, nrow = N, ncol = p) # true cluster assignment
+X = matrix(NA, nrow = N, ncol = p) # data matrix
+for (i in 1:N) {
+  z_true[i,] = sample(1:K_true, p, replace=TRUE, prob=Pi_true[i,])
+  for (j in 1:p) {
+    z = z_true[i,j]
+    prob = Phi[[j]][z,]
+    X[i,j] = sample(1:length(prob), 1, replace = TRUE, prob = prob)
+  }
+}
+
+```
+
+```{r}
+# make MCAR
+missing_prob = 0.45
+X_miss = X
+for (col in 1:ncol(X)) {
+    missing_ind <- rbernoulli(N, p = missing_prob)
+    X_miss[missing_ind, col] <- NA
+}
+R = is.na(X_miss)
+```
+
+### Visualization
+
+```{r}
+barplot(table(z_true)/N/p, main = 'cluster assignment: z', ylim = c(0,1))
+```
+
+```{r}
+# 1st variable
+var = 1
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
+}
+```
+
+```{r}
+# 2nd variable
+var = 2
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
+}
+```
+
+```{r}
+# 3rd variable
+var = 3
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
+}
+```
+
+```{r}
+# 4th variable
+var = 4
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
+}
+```
+
+```{r}
+# 5th variable
+var = 5
+barplot(table(X[,var])/N, main = 'overall')
+for (z in 1:K_true) {
+  barplot(table(X[z_true[,var]==z,var])/sum(table(X[z_true[,var]==z,var])), 
+        main = paste('variable:',var,'/', 'cluster:',z), ylim = c(0,1))
+}
+```
+
+### Dirichlet Process Mixture of Product of Multinomial MCMC
+
+```{r}
+set.seed(1)
+# Convert data type to factor
+data_df <- data.frame(X_miss)
+data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
+
+# MCMC variables
+Mon = 10000
+burnin = 10000
+thining = 10
+K = 60
+a = 0.25
+b = 0.25
+# 1. Create and initialize the Rcpp_Lcm model object
+model = CreateModel(X = data_df, MCZ = NULL, K = K, Nmax = 0, 
+                    aalpha = a, balpha = b)
+
+# 2. Set tracer
+model$SetTrace(c('k_star', 'psi', 'ImputedX', 'alpha'), Mon)
+  
+# 3. Run model using Run(burnin, iter, thinning)
+model$Run(burnin, Mon, thining)
+```
+
+### Posterior Diagnostics
+
+```{r}
+X_POST = array(NA, c(N, p, Mon/thining))
+# Extract results
+output <- model$GetTrace()
+k_star <- output$k_star
+psi <- output$psi
+alpha <- output$alpha
+imputed_df <- output$ImputedX # size no. samples x (N*p)
+
+n_imputations = Mon/thining
+imputation_index = as.integer(seq(1,dim(imputed_df)[1], length.out = n_imputations))
+
+for (i in 1:length(imputation_index)) {
+    index = imputation_index[i]
+    # need to plus 1 here because the class index of DP function starts at 0
+    d = imputed_df[index,] + 1
+    dim(d) = dim(t(data_df))
+    X_POST[,,i] = t(d)
+}
+```
+
+```{r}
+alpha0.mcmc <- mcmc(alpha, start = 1)
+summary(alpha0.mcmc)
+plot(alpha0.mcmc)
+autocorr.plot(alpha0.mcmc)
+```
+
+```{r}
+# Check number of active cluster 
+plot(1:length(k_star), k_star, xlab = 'trials', 
+     ylab = 'number of active clusters', 
+     main = 'Number of clusters used over time', ylim = c(0,K))
+```
+
+```{r}
+X_df = data.frame(X)
+for (n_way in 1:3) {
+  combinations = combn(1:p, n_way)
+
+  # calculate true pmf without missingness
+  true_pmf = c()
+  for (i in 1:(dim(combinations)[2])) {
+    variables = combinations[, i]
+    true_pmf_temp = table(X_df[,variables])
+    true_pmf_temp = c(true_pmf_temp/sum(true_pmf_temp))
+    true_pmf = c(true_pmf, true_pmf_temp)
+  }
+  
+  # calculate imputed pmf
+  imputed_pmf = c()
+  for (t in 1:(dim(X_POST)[3])) {
+    # for each imputed dataset, calculate joint pmf
+    X_POST_df = data.frame(X_POST[,,t])
+    imputed_pmf_temp = c()
+    for (i in 1:(dim(combinations)[2])) {
+      variables = combinations[, i]
+      imputed_pmf_temp = c(imputed_pmf_temp, c(table(X_POST_df[,variables])/sum(table(X_POST_df[,variables]))))
+    }
+    # imputed_pmf has dimension #samples x #pmfs
+    imputed_pmf = rbind(imputed_pmf, imputed_pmf_temp)
+  }
+  
+  # calculate mean and 95% credible interval
+  imputed_pmf_mean = apply(imputed_pmf, MARGIN = 2, FUN = mean)
+  imputed_pmf_ci = apply(imputed_pmf, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.975))
+  pmf_df <- data.frame(true_pmf,imputed_pmf_mean, imputed_pmf_ci[1,], imputed_pmf_ci[2,])
+  names(pmf_df) <- c('true_pmf', "expectation","Q2.5", "Q97.5")
+  
+  # Calculate coverage
+  lower_bound = imputed_pmf_ci[1,]
+  upper_bound = imputed_pmf_ci[2,]
+  coverage = (lower_bound<=true_pmf) & (true_pmf<=upper_bound)
+  
+  
+  # Make a plot
+  title = paste('True pmf vs Imputed pmf: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_pointrange(aes(ymin = Q2.5, ymax = Q97.5), size = 0.4, alpha = 0.6, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.2)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_point(size = 1, alpha = 0.7, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.5)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  print(dim(pmf_df))
+  
+  
+  # make coverage plot
+  title = paste('95% CI: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  PredCI_col <- ifelse(coverage==1,"lightblue3","red4")
+  PredCI_lwd <- ifelse(coverage==1,1,2)
+  plot(pmf_df[,1], pch=4, ylim=range(pretty(c(pmf_df[,3], pmf_df[,4]))),
+       xlab="Index", ylab="Joint probabilities", las=1,col="orange4",
+       main=title)
+  segments(seq_len(length(pmf_df[,1])), pmf_df[,3], y1=pmf_df[,4], lend=1,
+           lwd=PredCI_lwd,col=PredCI_col)
+  points(pmf_df[,3], pch="-", bg=PredCI_col); points(pmf_df[,4], pch="-", bg=PredCI_col)
+  legend("topright", inset=.05, bty="n",
+         legend=c("Intervals containing true pmf",
+                  "Intervals NOT containing true pmf","true joint probabilities"),
+         lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
+}
+```
+
+```{r}
+# subsample for trivariate distribution
+idx = seq(1, dim(pmf_df)[1], 5)
+# Make a plot
+title = paste('True pmf vs Imputed pmf: n_way', n_way, 
+              ', coverage', round(mean(coverage),2))
+plt <- ggplot(data = pmf_df[idx,], aes(x = true_pmf, y = expectation))+
+  geom_point(size = 1, alpha = 0.7, colour = 'blue')+
+  geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.5)+
+  scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+  scale_y_continuous(expression('imputed pmf')) +
+  ggtitle(title)
+show(plt)
+
+
+# make coverage plot
+title = paste('95% CI: n_way', n_way, 
+              ', coverage', round(mean(coverage),2))
+PredCI_col <- ifelse(coverage[idx]==1,"lightblue3","red4")
+PredCI_lwd <- ifelse(coverage[idx]==1,1,2)
+plot(pmf_df[idx,1], pch=4, ylim=range(pretty(c(pmf_df[idx,3], pmf_df[idx,4]))),
+     xlab="Index", ylab="Joint probabilities", las=1,col="orange4",
+     main=title)
+segments(seq_len(length(pmf_df[idx,1])), pmf_df[idx,3], y1=pmf_df[idx,4], lend=1,
+         lwd=PredCI_lwd,col=PredCI_col)
+points(pmf_df[idx,3], pch="-", bg=PredCI_col); points(pmf_df[idx,4], pch="-", bg=PredCI_col)
+legend("topright", inset=.05, bty="n",
+       legend=c("Intervals containing true pmf",
+                "Intervals NOT containing true pmf","true joint probabilities"),
+       lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
+```
+
+* * *
+
+
+
