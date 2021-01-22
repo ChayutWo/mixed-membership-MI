@@ -409,18 +409,30 @@ for (trial in 1:Mon) {
   alpha0_temp = rgamma(1, c + sum(sik), d - sum(log(t_temp)))
   
   # Step 6: Update x_ij
-  for (i in 1:N) {
-    for (j in 1:p) {
-      if (R[i,j] == 1) {
-        # if the value is missing, sample from posterior discrete distribution
-        z_cur = z_temp[i,j]
-        prob = phi_temp[[j]][z_cur,]
-        prob_cum = prob%*%upper.tri(diag(length(prob)),diag=TRUE)
-        Ran_unif <- runif(1)
-        x_temp[i,j] <- sum(Ran_unif>prob_cum) + 1L
-      }
-    }
+  for (j in 1:p) {
+    # get z_ij for missing entries
+    missing_idx = (R[,j] == 1)
+    z_cur = z_temp[missing_idx,j]
+    # get phi_ij
+    prob = phi_temp[[j]][z_cur,] # number of missing entries x dj matrix
+    prob_cum = prob%*%upper.tri(diag(ncol(prob)),diag=TRUE)
+    Ran_unif <- runif(sum(missing_idx))
+    x_temp[missing_idx, j] = rowSums(Ran_unif>prob_cum) + 1L
   }
+  
+  #for (i in 1:N) {
+  #  for (j in 1:p) {
+  #    if (R[i,j] == 1) {
+  #      # if the value is missing, sample from posterior discrete distribution
+  #      z_cur = z_temp[i,j]
+  #      prob = phi_temp[[j]][z_cur,]
+  #      prob_cum = prob%*%upper.tri(diag(length(prob)),diag=TRUE)
+  #      Ran_unif <- runif(1)
+  #      x_temp[i,j] <- sum(Ran_unif>prob_cum) + 1L
+  #    }
+  #  }
+  #}
+  
   # Save posterior samples
   if ((trial>burnin) && ((trial-burnin)%%thining==1) ) {
     id = id + 1

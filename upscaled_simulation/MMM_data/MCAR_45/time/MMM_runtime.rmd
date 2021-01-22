@@ -41,6 +41,7 @@ library(mvtnorm)
 library(MCMCpack)
 library(mnormt)
 library(coda)
+library(DirichletReg)
 ```
 
 * * *
@@ -166,6 +167,11 @@ for (i in 1:N) {
   }
 }
 
+# format variables of X to be factor
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
 ```
 
 ```{r}
@@ -246,8 +252,8 @@ for (z in 1:K_true) {
 ```{r}
 set.seed(1)
 # MCMC variables
-Mon = 5000
-burnin = 2500
+Mon = 20000
+burnin = 10000
 thining = 10
 
 N = dim(X)[1]
@@ -279,7 +285,10 @@ PHI5 = array(NA, c(K, d5, (Mon-burnin)/thining))
 x_temp = X_miss
 
 # initialization for z
-z_temp = matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p)
+z_temp = data.frame(matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p))
+for (col_index in 1:ncol(z_temp)) {
+  z_temp[,col_index] = factor(z_temp[,col_index], levels = 1:K)
+}
 # nik = # of variables in cluster k for observation i
 nik = matrix(NA, N, K)
 for (k in 1:K) {
@@ -351,7 +360,7 @@ for (trial in 1:Mon) {
     full_prob_matrix <- full_prob_matrix/matrix(rowSums(full_prob_matrix),nrow=N,ncol=K) # normalize
     Ran_unif <- runif(N)
     cumul <- full_prob_matrix%*%upper.tri(diag(ncol(full_prob_matrix)),diag=TRUE)
-    z_temp[,j] <- rowSums(Ran_unif>cumul) + 1L
+    z_temp[,j] <- factor(rowSums(Ran_unif>cumul) + 1L, levels = 1:K)
   }
   z_time = z_time + (Sys.time() - start)
   
@@ -366,15 +375,8 @@ for (trial in 1:Mon) {
   # Step 2: Update Phi_k
   start = Sys.time()
   for (j in 1:p) {
-    for (k in 1:K) {
-      dj = level[j]
-      njk = rep(NA, dj) # number of response j in cluster k that answer different levels
-      for (lev in 1:dj) {
-        # number of response j that has level lev and under cluster k
-        njk[lev] = sum(x_temp[,j]==lev & z_temp[,j]==k)
-      }
-      phi_temp[[j]][k,] = rdirichlet(1,rep(1,level[j])+njk)
-    }
+    contingency_table = table(z_temp[,j], x_temp[,j])
+    phi_temp[[j]] = DirichletReg::rdirichlet(K,1+contingency_table)
   }
   phi_time = phi_time + (Sys.time() - start)
   
@@ -441,18 +443,17 @@ for (trial in 1:Mon) {
   
   # Step 6: Update x_ij
   start = Sys.time()
-  for (i in 1:N) {
-    for (j in 1:p) {
-      if (R[i,j] == 1) {
-        # if the value is missing, sample from posterior discrete distribution
-        z_cur = z_temp[i,j]
-        prob = phi_temp[[j]][z_cur,]
-        prob_cum = prob%*%upper.tri(diag(length(prob)),diag=TRUE)
-        Ran_unif <- runif(1)
-        x_temp[i,j] <- sum(Ran_unif>prob_cum) + 1L
-      }
-    }
+  for (j in 1:p) {
+    # get z_ij for missing entries
+    missing_idx = (R[,j] == 1)
+    z_cur = z_temp[missing_idx,j]
+    # get phi_ij
+    prob = phi_temp[[j]][z_cur,] # number of missing entries x dj matrix
+    prob_cum = prob%*%upper.tri(diag(ncol(prob)),diag=TRUE)
+    Ran_unif <- runif(sum(missing_idx))
+    x_temp[missing_idx, j] = rowSums(Ran_unif>prob_cum) + 1L
   }
+  
   impute_time = impute_time + (Sys.time() - start)
   # Save posterior samples
   if ((trial>burnin) && ((trial-burnin)%%thining==1) ) {
@@ -461,8 +462,8 @@ for (trial in 1:Mon) {
     ALPHA0[id] = alpha0_temp
     BETA[id,] = beta_temp
     PI[,,id] = Pi_temp
-    Z[,,id] = z_temp
-    X_SAMPLE[,,id] = x_temp
+    Z[,,id] = data.matrix(z_temp)
+    X_SAMPLE[,,id] = data.matrix(x_temp)
     PHI1[,,id] = phi_temp[[1]]
     PHI2[,,id] = phi_temp[[2]]
     PHI3[,,id] = phi_temp[[3]]
