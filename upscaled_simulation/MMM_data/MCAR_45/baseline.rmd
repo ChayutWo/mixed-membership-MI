@@ -167,6 +167,11 @@ for (i in 1:N) {
   }
 }
 
+# format variables of X to be factor
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
 ```
 
 ```{r}

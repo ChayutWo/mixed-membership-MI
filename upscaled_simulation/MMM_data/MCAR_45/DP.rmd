@@ -167,6 +167,11 @@ for (i in 1:N) {
   }
 }
 
+# format variables of X to be factor
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
 ```
 
 ```{r}
@@ -241,8 +246,8 @@ for (z in 1:K_true) {
 ```{r}
 set.seed(1)
 # Convert data type to factor
-data_df <- data.frame(X_miss)
-data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
+data_df <- X_miss
+#data_df[,colnames(data_df)] <- lapply(data_df[,colnames(data_df)], factor)
 
 # MCMC variables
 Mon = 10000
@@ -283,6 +288,7 @@ for (i in 1:length(imputation_index)) {
     dim(d) = dim(t(data_df))
     X_POST[,,i] = t(d)
 }
+
 ```
 
 ```{r}
