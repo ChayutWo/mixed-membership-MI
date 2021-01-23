@@ -41,6 +41,7 @@ library(mvtnorm)
 library(MCMCpack)
 library(mnormt)
 library(coda)
+library(DirichletReg)
 ```
 
 * * *
@@ -166,6 +167,11 @@ for (i in 1:N) {
   }
 }
 
+# format variables of X to be factor
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
 ```
 
 ```{r}
@@ -279,7 +285,11 @@ PHI5 = array(NA, c(K, d5, (Mon-burnin)/thining))
 x_temp = X_miss
 
 # initialization for z
-z_temp = matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p)
+z_temp = data.frame(matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p))
+for (col_index in 1:ncol(z_temp)) {
+  z_temp[,col_index] = factor(z_temp[,col_index], levels = 1:K)
+}
+
 # nik = # of variables in cluster k for observation i
 nik = matrix(NA, N, K)
 for (k in 1:K) {
@@ -323,6 +333,9 @@ Pi_temp <- u_temp*one_min_u_temp
 # initialization for auxiliary variables
 t_temp = array(NA, N)
 sik = matrix(0, N, K)
+
+# matrix used in MCMC
+nik = matrix(NA, N, K)
 ```
 
 ```{r}
@@ -338,25 +351,19 @@ for (trial in 1:Mon) {
     full_prob_matrix <- full_prob_matrix/matrix(rowSums(full_prob_matrix),nrow=N,ncol=K) # normalize
     Ran_unif <- runif(N)
     cumul <- full_prob_matrix%*%upper.tri(diag(ncol(full_prob_matrix)),diag=TRUE)
-    z_temp[,j] <- rowSums(Ran_unif>cumul) + 1L
+    z_temp[,j] <- factor(rowSums(Ran_unif>cumul) + 1L, levels = 1:K)
   }
   # update nik
-  nik = matrix(NA, N, K)
   for (k in 1:K) {
     nik[,k] = rowSums(z_temp==k)
   }
+  
   # Step 2: Update Phi_k
   for (j in 1:p) {
-    for (k in 1:K) {
-      dj = level[j]
-      njk = rep(NA, dj) # number of response j in cluster k that answer different levels
-      for (lev in 1:dj) {
-        # number of response j that has level lev and under cluster k
-        njk[lev] = sum(x_temp[,j]==lev & z_temp[,j]==k)
-      }
-      phi_temp[[j]][k,] = rdirichlet(1,rep(1,level[j])+njk)
-    }
+    contingency_table = table(z_temp[,j], x_temp[,j])
+    phi_temp[[j]] = DirichletReg::rdirichlet(K,1+contingency_table)
   }
+  
   # Step 3: Update Vk and betak
   # sample auxiliary variable ti
   t_temp = array(NA, N)
@@ -440,8 +447,8 @@ for (trial in 1:Mon) {
     ALPHA0[id] = alpha0_temp
     BETA[id,] = beta_temp
     PI[,,id] = Pi_temp
-    Z[,,id] = z_temp
-    X_SAMPLE[,,id] = x_temp
+    Z[,,id] = data.matrix(z_temp)
+    X_SAMPLE[,,id] = data.matrix(x_temp)
     PHI1[,,id] = phi_temp[[1]]
     PHI2[,,id] = phi_temp[[2]]
     PHI3[,,id] = phi_temp[[3]]

@@ -252,8 +252,8 @@ for (z in 1:K_true) {
 ```{r}
 set.seed(1)
 # MCMC variables
-Mon = 20000
-burnin = 10000
+Mon = 1000
+burnin = 500
 thining = 10
 
 N = dim(X)[1]
@@ -332,6 +332,9 @@ Pi_temp <- u_temp*one_min_u_temp
 # initialization for auxiliary variables
 t_temp = array(NA, N)
 sik = matrix(0, N, K)
+
+# matrix used in MCMC
+nik = matrix(NA, N, K)
 ```
 
 ```{r}
@@ -366,7 +369,6 @@ for (trial in 1:Mon) {
   
   # update nik
   start = Sys.time()
-  nik = matrix(NA, N, K)
   for (k in 1:K) {
     nik[,k] = rowSums(z_temp==k)
   }
