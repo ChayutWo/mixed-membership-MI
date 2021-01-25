@@ -259,7 +259,7 @@ X_POST = array(NA, c(N, p, n_samples))
 
 # Impute by using marginal probability
 for (i in 1:n_samples) {
-  X_POST[,,i] <- X_miss
+  X_POST[,,i] <- data.matrix(X_miss)
   for (col in 1:ncol(X)) {
     missing_ind <- R[,col]
     X_POST[missing_ind, col, i] <- sample(1:level[col], size = sum(missing_ind),
