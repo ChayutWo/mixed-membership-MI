@@ -372,6 +372,8 @@ for (trial in 1:Mon) {
   for (k in 1:K) {
     nik[,k] = rowSums(z_temp==k)
   }
+  # for each row, factor it and find frequency using table
+  #nik = t(apply(z_temp, 1, function(x) table(factor(x,levels=1:K))))
   nik_time = nik_time + (Sys.time() - start)
   
   # Step 2: Update Phi_k
@@ -385,10 +387,9 @@ for (trial in 1:Mon) {
   # Step 3: Update Vk and betak
   # sample auxiliary variable ti
   start = Sys.time()
-  t_temp = array(NA, N)
+  t_temp = rbeta(N,alpha0_temp,rowSums(nik))
   sik = matrix(0, N, K)
   for (i in 1:N) {
-    t_temp[i] = rbeta(1,alpha0_temp,sum(nik[i,]))
     # sample auxiliary variable sik
     for (k in 1:K) {
       if (nik[i,k]==0) {
@@ -723,6 +724,17 @@ data = as.numeric(c(z_time, nik_time, phi_time, aux_time, beta_time, pi_time,
 names(data) = c('z', 'nik', 'phi', 'aux', 'beta', 'pi', 'gamma', 'alpha', 'impute')
 barplot(data, ylab = 'runtime portion', legend = TRUE, 
         main = 'Runtime comparison for different parts of MCMC', ylim = c(0,1))
+
+print(paste('z_time', round(z_time,4)))
+print(paste('nik_time', round(nik_time,4)))
+print(paste('phi_time', round(phi_time,4)))
+print(paste('aux_time', round(aux_time,4)))
+print(paste('beta_time', round(beta_time,4)))
+print(paste('pi_time', round(pi_time,4)))
+print(paste('gamma_time', round(gamma_time,4)))
+print(paste('alpha_time', round(alpha_time,4)))
+print(paste('impute_time', round(impute_time,4)))
+print(paste('total_time', round(total_time,4)))
 ```
 * * *
 

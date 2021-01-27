@@ -366,10 +366,9 @@ for (trial in 1:Mon) {
   
   # Step 3: Update Vk and betak
   # sample auxiliary variable ti
-  t_temp = array(NA, N)
+  t_temp = rbeta(N,alpha0_temp,rowSums(nik))
   sik = matrix(0, N, K)
   for (i in 1:N) {
-    t_temp[i] = rbeta(1,alpha0_temp,sum(nik[i,]))
     # sample auxiliary variable sik
     for (k in 1:K) {
       if (nik[i,k]==0) {
