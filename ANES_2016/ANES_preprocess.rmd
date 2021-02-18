@@ -1,0 +1,127 @@
+
+---
+title: "ANES dataset review"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(knitr)
+library(dplyr)
+library(arm)
+library(pROC)
+library(tidyverse)
+library(MASS)
+library(tigerstats)
+library(leaps)
+library(car)
+library(rms)
+require(caret)
+require(e1071)
+library(lme4) 
+library(lattice)
+library(broom)
+library(boot)
+library(ggplot2)
+library(cobalt)
+require(tidyverse)
+require(rstanarm)
+require(magrittr)
+require(rstan)
+require(MCMCpack)
+library(abind)
+library(matrixStats)
+library(truncnorm)
+library(mvtnorm)
+library(MCMCpack)
+library(mnormt)
+library(coda)
+library(NPBayesImputeCat)
+library(pheatmap)
+```
+
+* * *
+```{r}
+# read raw data
+filepath = './anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+df = read.csv(filepath,sep= '|')
+```
+
+```{r}
+# select variables
+var_name = c('V162123', 'V162134', 'V162139', 'V162140', 'V162145', 'V162146',
+             'V162148', 'V162149', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162186', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162210', 'V162211', 'V162212', 'V162213', 'V162214',
+             'V162219', 'V162230', 'V162231', 'V162233', 'V162243', 'V162246',
+             'V162260', 'V162265', 'V162269', 'V162271', 'V162290')
+df = df[, var_name]
+n_col = ncol(df)
+```
+
+```{r}
+# EDA: Missing values
+# missing values in each column: looks ok
+apply(df <= 0,MARGIN = 2, sum)
+
+# complete case %
+sum(apply(df <= 0,MARGIN = 1, sum) == 0)
+sum(apply(df <= 0,MARGIN = 1, sum) == 0)/dim(df)[1]
+
+# extract complete cases
+complete_ind = (apply(df <= 0,MARGIN = 1, sum) == 0)
+df = df[complete_ind,]
+```
+
+```{r}
+# EDA: Distribution
+# V162139 (importance of reducing tax deficit) is pretty skewed as most people answered extremely important and very important
+# V162140 (favor/oppose tax on millionaires) is pretty skewed as more than 60% of people answered favor
+# V162149 (favor/oppose equal pay for men and women) is overwhelmed by favor response (>80%)
+# V162186 (how much government regulation on business is good) is overwhelmed (~60%) by the middle response (a moderate amount) which is kind of a easy-going answer.
+# V162192 (should minimum wage be raised) is dominated by raised (60%) and kept the same (30%) so the other two options are rare cases (lowered or eliminated)
+# V162219 (are votes counted fairly) is dominated by an answer "most of the time" (50-60%)
+# V162243 (society should make sure everyone has equal opportunity) has a pretty predictable and boring answer - most of them answered agree strongly or agree somewhat. <10% of people disagreed.
+
+for (j in 1:n_col) {
+  subset = df[,j]
+  barplot(table(subset)/sum(table(subset)), main = var_name[j])
+  
+}
+```
+
+
+```{r, fig.width=8, fig.height=8}
+# EDA: Correlation
+
+# standardization
+mean_vec = apply(df, MARGIN = 2, FUN = mean)
+sd_vec = apply(df, MARGIN = 2, FUN = sd)
+df_std = t((t(df)-mean_vec)/sd_vec)
+# calculate covariance matrix
+cov_matrix = cov(df_std)
+# plot heat map
+pheatmap::pheatmap(cov_matrix, treeheight_row = 0, treeheight_col = 0, breaks = seq(-1,1,length.out = 100), fontsize = 15)
+
+levelplot(abs(cov_matrix)>0.6)
+```
+
+```{r}
+# pairs with high correlation
+# V162214 (black must try harder to get ahead) with V162211 (blacks should work way up without special favors: cor = 0.6713
+cov_matrix['V162214', 'V162211']
+# V162212 (past slavery make it more difficult for blacks) with V162213 (blacks have gotten less than deserve): cor = 0.6845
+cov_matrix['V162212', 'V162213']
+# V162208 (newer lifestyles are contributing to the breakdown of society) with V162210 (less problem if put more emphasis on traditional family ties: cor = 0.6182
+cov_matrix['V162210', 'V162208']
+```
+
+* * *
+
+
+

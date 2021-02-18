@@ -369,9 +369,9 @@ for (trial in 1:Mon) {
   
   # update nik
   start = Sys.time()
-  for (k in 1:K) {
-    nik[,k] = rowSums(z_temp==k)
-  }
+  #for (k in 1:K) {
+  #  nik[,k] = rowSums(z_temp==k)
+  #}
   # for each row, factor it and find frequency using table
   #nik = t(apply(z_temp, 1, function(x) table(factor(x,levels=1:K))))
   nik_time = nik_time + (Sys.time() - start)
@@ -387,19 +387,20 @@ for (trial in 1:Mon) {
   # Step 3: Update Vk and betak
   # sample auxiliary variable ti
   start = Sys.time()
-  t_temp = rbeta(N,alpha0_temp,rowSums(nik))
   sik = matrix(0, N, K)
-  for (i in 1:N) {
-    # sample auxiliary variable sik
-    for (k in 1:K) {
-      if (nik[i,k]==0) {
-        sik[i,k]=0
-      }else{
-        prob = (alpha0_temp*beta_temp[k])/(alpha0_temp*beta_temp[k]+1:(nik[i,k])-1)
-        sik[i,k] = sum(rbernoulli(nik[i,k], prob))
-      }
+  for (k in 1:K){
+    # update count nik of number of variables for each person in different clusters
+    nik[,k] = rowSums(z_temp==k) 
+    if(sum(nik[,k]>0)>0){
+      non_zero_index <- which(nik[,k]>0)
+      non_zero_nik <- nik[non_zero_index,k]
+      sik[non_zero_index,k] <- 
+        unlist(lapply(1:length(non_zero_nik), 
+                      function(x) sum(rbernoulli(non_zero_nik[x], 
+                                                ((alpha0_temp*beta_temp[k])/(alpha0_temp*beta_temp[k] + (1:non_zero_nik[x]) -1)) )) ))
     }
   }
+  t_temp = rbeta(N,alpha0_temp,rowSums(nik)) 
   aux_time = aux_time + (Sys.time() - start)
   
   # sample Vk for k = 1,...,K-1
