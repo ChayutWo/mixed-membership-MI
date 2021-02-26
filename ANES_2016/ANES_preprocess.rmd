@@ -62,12 +62,17 @@ var_name = c('V162123', 'V162134', 'V162139', 'V162140', 'V162145', 'V162146',
              'V162260', 'V162265', 'V162269', 'V162271', 'V162290')
 df = df[, var_name]
 n_col = ncol(df)
+
+# remove no post-election interview and no post data
+
+post_interview_ind = (apply((df == -6 | df == -7),MARGIN = 1, sum) == 0)
+df = df[post_interview_ind,]
 ```
 
 ```{r}
 # EDA: Missing values
 # missing values in each column: looks ok
-apply(df <= 0,MARGIN = 2, sum)
+apply(df <= 0,MARGIN = 2, sum)*100/dim(df)[1]
 
 # complete case %
 sum(apply(df <= 0,MARGIN = 1, sum) == 0)
@@ -113,12 +118,51 @@ levelplot(abs(cov_matrix)>0.6)
 
 ```{r}
 # pairs with high correlation
-# V162214 (black must try harder to get ahead) with V162211 (blacks should work way up without special favors: cor = 0.6713
+# V162214 (black must try harder to get ahead) with V162211 (blacks should work way up without special favors: cor = 0.6713 -> pick V162214 and remove V162211
 cov_matrix['V162214', 'V162211']
-# V162212 (past slavery make it more difficult for blacks) with V162213 (blacks have gotten less than deserve): cor = 0.6845
+# V162212 (past slavery make it more difficult for blacks) with V162213 (blacks have gotten less than deserve): cor = 0.6845 -> pick V162212 and remove V162213
 cov_matrix['V162212', 'V162213']
-# V162208 (newer lifestyles are contributing to the breakdown of society) with V162210 (less problem if put more emphasis on traditional family ties: cor = 0.6182
+# V162208 (newer lifestyles are contributing to the breakdown of society) with V162210 (less problem if put more emphasis on traditional family ties: cor = 0.6182 -> keep V162208 and remove V162210
 cov_matrix['V162210', 'V162208']
+```
+
+Note: remove the following variables due to distributions
+- V162139
+- V162149
+- V162186
+- V162219
+- V162243
+- V162230
+
+```{r}
+# here is the code to generate final dataset to be used in modelling
+filepath = './anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+X = read.csv(filepath,sep= '|')
+# select variables: 32 variables
+var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 'V162233', 
+             'V162246', 'V162260', 'V162265', 'V162269', 'V162271', 
+             'V162290')
+X = X[, var_name]
+# extract complete cases
+complete_ind = (apply(X <= 0,MARGIN = 1, sum) == 0)
+X = X[complete_ind,]
+# fix problem with the lebel of V162290: levels 1,2,4,5 to 1,2,3,4
+ind_4 = X[,'V162290']==4
+X[ind_4,'V162290'] = 3
+ind_5 = X[,'V162290']==5
+X[ind_5,'V162290'] = 4
+# Merge level 3 and 4 from V162192
+ind_4 = X[,'V162192']==4
+X[ind_4,'V162192'] = 3
+# format data into categorical variables
+level = apply(X, MARGIN=2, max)
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
 ```
 
 * * *
