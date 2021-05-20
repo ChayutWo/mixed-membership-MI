@@ -50,7 +50,7 @@ library(pheatmap)
 # here is the code to generate final dataset to be used in modelling
 filepath = '../anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
 X = read.csv(filepath,sep= '|')
-# select variables: 32 variables
+# select variables: 26 variables
 var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
              'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
              'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
@@ -204,6 +204,7 @@ for (trial in 1:Mon) {
     # update count nik of number of variables for each person in different clusters
     nik[,k] = rowSums(z_temp==k) 
     if(sum(nik[,k]>0)>0){
+      # sample sik for only k where nk not equal 0
       non_zero_index <- which(nik[,k]>0)
       non_zero_nik <- nik[non_zero_index,k]
       sik[non_zero_index,k] <- 
@@ -408,7 +409,7 @@ for (k in 1:K) {
 ```
 
 ```{r}
-# Compare predictive distribution with true marginal distribution and posterior samples
+# Compare posterior predictive distribution with true marginal distribution and posterior samples
 X_POST = X_SAMPLE
 
 # sample from posterior predictive distribution
@@ -426,7 +427,7 @@ for (id in 1:dim(X_SAMPLE)[3]) {
 ```
 
 ```{r}
-X_df = data.frame(X)
+X_df = data.frame(X) #dataframe for original data without missing values
 for (n_way in 1:2) {
   combinations = combn(1:p, n_way)
 
@@ -465,7 +466,7 @@ for (n_way in 1:2) {
   coverage = (lower_bound<=true_pmf) & (true_pmf<=upper_bound)
   
   
-  # Make a plot
+  # Make a plot of true pmf vs posterior predictive pmf
   title = paste('True pmf vs Imputed pmf: n_way', n_way, 
                 ', coverage', round(mean(coverage),2))
   plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
@@ -502,6 +503,12 @@ for (n_way in 1:2) {
                   "Intervals NOT containing true pmf","true joint probabilities"),
          lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
 }
+```
+
+
+```{r}
+# save data: X_POST here is actually sampled from posterior predictive distribution
+save(BETA, PHI, X, X_POST, Z, file = "./samples_Sort_Beta/post_samples_sort_beta.RData")
 ```
 
 * * *
