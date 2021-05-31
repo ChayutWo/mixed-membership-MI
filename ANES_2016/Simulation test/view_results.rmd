@@ -14,7 +14,6 @@ knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
 library(ggplot2)
 require(MCMCpack)
 library(RColorBrewer)
-library(wesanderson)
 ```
 
 * * *
@@ -220,7 +219,7 @@ plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active
 
 ```{r, fig.width=3, fig.height = 4}
 # View result for particular variable over different groups (7 biggest groups)
-var = 'V162233' # change this value
+var = 'V162290' # change this value
 
 
 # plotting section
@@ -246,10 +245,10 @@ title(title_text, line = 2, outer = TRUE)
 ```{r, fig.width=4, fig.height=4}
 # plot selected variables for the selected group
 group = 1 # change this value
-var_list = c('V162123', 'V162209', 'V162214', 'V162233', 'V162269')
+var_list = c('V162140', 'V162148', 'V162158', 'V162179', 'V162192', 'V162209', 'V162214', 'V162269')
 
 # plotting section
-par(mfrow=c(3,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
+par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
 
 for (var in var_list) {
   idx = meta[[var]][4] # index for that variable
