@@ -87,10 +87,10 @@ R = is.na(X_miss)
 ### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
-set.seed(1)
+set.seed(10)
 # MCMC variables
-Mon = 15000
-burnin = 5000
+Mon = 20000
+burnin = 10000
 thining = 5
 K = 30
 
@@ -509,7 +509,7 @@ for (n_way in 1:2) {
 
 ```{r}
 # save data: X_POST here is actually sampled from posterior predictive distribution
-save(BETA, PHI, X, X_POST, Z, file = "./samples_Sort_Beta/post_samples_sort_beta.RData")
+save(BETA, PHI, X, X_POST, Z, file = "./samples_Sort_Beta/post_samples_sort_beta_seed10.RData")
 ```
 
 * * *

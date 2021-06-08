@@ -1,6 +1,6 @@
 
 ---
-title: "ANES dataset model with MMM without missing values - fix label switching"
+title: "ANES dataset model with MMM with data MCAR 15% - fix label switching"
 output:
   pdf_document: default
   html_document:
@@ -79,9 +79,20 @@ for (col_index in 1:ncol(X)) {
 ```
 
 ```{r}
-# Make missing data
+# Make missing data MCAR 15%
+set.seed(0)
+missing_prob = 0.15
+missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
+                'V162179', 'V162192', 'V162207', 'V162209', 
+                'V162214', 'V162246', 'V162269', 'V162271')
+missing_col = which(var_name %in% missing_col)
 X_miss = X
-R = is.na(X_miss)
+
+# Make data missing at random for each of the selected variables
+for (col in missing_col) {
+    missing_ind <- rbernoulli(dim(X)[1], p = missing_prob)
+    X_miss[missing_ind, col] <- NA
+}
 ```
 
 ### Mixed-Membership Model (MMM) MCMC
@@ -89,8 +100,8 @@ R = is.na(X_miss)
 ```{r}
 set.seed(1)
 # MCMC variables
-Mon = 15000
-burnin = 5000
+Mon = 20000
+burnin = 10000
 thining = 5
 K = 30
 
@@ -119,6 +130,13 @@ for (j in 1:p) {
 ```{r}
 # initialization for x
 x_temp = X_miss
+R = is.na(X_miss) # missingness indicator 1[x is missing]
+# initial imputation for x with observed marginal probability
+for (col in 1:ncol(X)) {
+    missing_ind <- R[,col]
+    x_temp[missing_ind, col] <- sample(1:level[col], size = sum(missing_ind),
+                                       table(x_temp[R[,col]!=1,col]), replace = TRUE)
+}
 
 # initialization for z
 z_temp = data.frame(matrix(sample(1:K, size = N*p, replace = TRUE), nrow = N, ncol = p))
@@ -249,21 +267,17 @@ for (trial in 1:Mon) {
   # Step 5.2: Update alpha
   alpha0_temp = rgamma(1, c + sum(sik), d - sum(log(t_temp)))
   
-  # Step 6: Update x_ij
-  if (FALSE) {
-    # we dont have missing values
-    for (j in 1:p) {
-      # get z_ij for missing entries
-      missing_idx = (R[,j] == 1)
-      z_cur = z_temp[missing_idx,j]
-      # get phi_ij
-      prob = phi_temp[[j]][z_cur,] # number of missing entries x dj matrix
-      prob_cum = prob%*%upper.tri(diag(ncol(prob)),diag=TRUE)
-      Ran_unif <- runif(sum(missing_idx))
-      x_temp[missing_idx, j] = rowSums(Ran_unif>prob_cum) + 1L
-    }
+  # Step 6: Update x_ij: impute missing values with posterior predictive probabilities 
+  for (j in 1:p) {
+    # get z_ij for missing entries
+    missing_idx = (R[,j] == 1)
+    z_cur = z_temp[missing_idx,j]
+    # get phi_ij
+    prob = phi_temp[[j]][z_cur,] # number of missing entries x dj matrix
+    prob_cum = prob%*%upper.tri(diag(ncol(prob)),diag=TRUE)
+    Ran_unif <- runif(sum(missing_idx))
+    x_temp[missing_idx, j] = rowSums(Ran_unif>prob_cum) + 1L
   }
-
   
   # Save posterior samples
   if ((trial>burnin) && ((trial-burnin)%%thining==1) ) {
@@ -273,7 +287,7 @@ for (trial in 1:Mon) {
     BETA[id,] = beta_temp
     PI[,,id] = Pi_temp
     Z[,,id] = data.matrix(z_temp)
-    #X_SAMPLE[,,id] = data.matrix(x_temp)
+    X_SAMPLE[,,id] = data.matrix(x_temp)
     for (j in 1:p) {
       PHI[[j]][,,id] = phi_temp[[j]]
     }
@@ -506,10 +520,93 @@ for (n_way in 1:2) {
 }
 ```
 
+```{r}
+X_df = data.frame(X) #dataframe for original data without missing values
+for (n_way in 1:2) {
+  combinations = combn(1:p, n_way)
+
+  # calculate true pmf without missingness
+  true_pmf = c()
+  for (i in 1:(dim(combinations)[2])) {
+    variables = combinations[, i]
+    if (any(missing_col %in% variables)) {
+      true_pmf_temp = table(X_df[,variables])
+      true_pmf_temp = c(true_pmf_temp/sum(true_pmf_temp))
+      true_pmf = c(true_pmf, true_pmf_temp)
+    }
+  }
+  
+  # calculate imputed pmf
+  imputed_pmf = c()
+  for (t in 1:(dim(X_SAMPLE)[3])) {
+    # for each imputed dataset, calculate joint pmf
+    X_SAMPLE_df = data.frame(X_SAMPLE[,,t])
+    imputed_pmf_temp = c()
+    for (i in 1:(dim(combinations)[2])) {
+      variables = combinations[, i]
+      if (any(missing_col %in% variables)) {
+        imputed_pmf_temp = c(imputed_pmf_temp,
+                             c(table(X_SAMPLE_df[,variables])/sum(table(X_SAMPLE_df[,variables]))))
+      }
+    }
+    # imputed_pmf has dimension #samples x #pmfs
+    imputed_pmf = rbind(imputed_pmf, imputed_pmf_temp)
+  }
+  
+  # calculate mean and 95% credible interval
+  imputed_pmf_mean = apply(imputed_pmf, MARGIN = 2, FUN = mean)
+  imputed_pmf_ci = apply(imputed_pmf, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.975))
+  pmf_df <- data.frame(true_pmf,imputed_pmf_mean, imputed_pmf_ci[1,], imputed_pmf_ci[2,])
+  names(pmf_df) <- c('true_pmf', "expectation","Q2.5", "Q97.5")
+  
+  # Calculate coverage
+  lower_bound = imputed_pmf_ci[1,]
+  upper_bound = imputed_pmf_ci[2,]
+  coverage = (lower_bound<=true_pmf) & (true_pmf<=upper_bound)
+  
+  
+  # Make a plot of true pmf vs posterior predictive pmf
+  title = paste('True pmf vs Imputed pmf: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_pointrange(aes(ymin = Q2.5, ymax = Q97.5), size = 0.4, alpha = 0.6, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.2)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_point(size = 1, alpha = 0.7, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.5)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  print(dim(pmf_df))
+  
+  
+  # make coverage plot
+  title = paste('95% CI: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  PredCI_col <- ifelse(coverage==1,"lightblue3","red4")
+  PredCI_lwd <- ifelse(coverage==1,1,2)
+  plot(pmf_df[,1], pch=4, ylim=range(pretty(c(pmf_df[,3], pmf_df[,4]))),
+       xlab="Index", ylab="Joint probabilities", las=1,col="orange4",
+       main=title)
+  segments(seq_len(length(pmf_df[,1])), pmf_df[,3], y1=pmf_df[,4], lend=1,
+           lwd=PredCI_lwd,col=PredCI_col)
+  points(pmf_df[,3], pch="-", bg=PredCI_col); points(pmf_df[,4], pch="-", bg=PredCI_col)
+  legend("topright", inset=.05, bty="n",
+         legend=c("Intervals containing true pmf",
+                  "Intervals NOT containing true pmf","true joint probabilities"),
+         lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
+}
+```
 
 ```{r}
 # save data: X_POST here is actually sampled from posterior predictive distribution
-save(BETA, PHI, X, X_POST, Z, file = "./samples_Sort_Beta/post_samples_sort_beta.RData")
+save(BETA, PHI, X, X_SAMPLE, X_POST, Z, file = "./samples_Sort_Beta/post_samples_sort_beta_mcar15.RData")
 ```
 
 * * *

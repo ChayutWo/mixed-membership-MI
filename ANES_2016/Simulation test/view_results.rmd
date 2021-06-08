@@ -19,7 +19,11 @@ library(RColorBrewer)
 * * *
 ```{r}
 # Import results
-filepath = './samples_Sort_Beta/post_samples_sort_beta.RData'
+#filepath = './samples_Sort_Beta/post_samples_sort_beta.RData'
+#filepath = './samples_Sort_Beta/post_samples_sort_beta_mcar30.RData'
+#filepath = './samples_Sort_Beta/post_samples_sort_beta_mcar15.RData'
+#filepath = "./samples_Sort_Beta/post_samples_sort_beta_seed5.RData"
+filepath = "./samples_Sort_Beta/post_samples_sort_beta_seed10.RData"
 load(filepath)
 # Number of observarions and covariates
 N = dim(X)[1]
@@ -244,7 +248,7 @@ title(title_text, line = 2, outer = TRUE)
 
 ```{r, fig.width=4, fig.height=4}
 # plot selected variables for the selected group
-group = 1 # change this value
+group = 7 # change this value
 var_list = c('V162140', 'V162148', 'V162158', 'V162179', 'V162192', 'V162209', 'V162214', 'V162269')
 
 # plotting section

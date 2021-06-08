@@ -1,0 +1,264 @@
+
+---
+title: "ANES dataset imputed with CART - MCAR 30%"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(knitr)
+library(dplyr)
+library(arm)
+library(pROC)
+library(tidyverse)
+library(MASS)
+library(tigerstats)
+library(leaps)
+library(car)
+library(rms)
+require(caret)
+require(e1071)
+library(lme4) 
+library(lattice)
+library(broom)
+library(boot)
+library(ggplot2)
+library(cobalt)
+require(tidyverse)
+require(rstanarm)
+require(magrittr)
+require(rstan)
+require(MCMCpack)
+library(abind)
+library(matrixStats)
+library(truncnorm)
+library(mvtnorm)
+library(MCMCpack)
+library(mnormt)
+library(coda)
+library(NPBayesImputeCat)
+library(pheatmap)
+library(mice)
+```
+
+* * *
+```{r}
+# here is the code to generate final dataset to be used in modelling
+filepath = '../anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+X = read.csv(filepath,sep= '|')
+# select variables: 26 variables
+var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 'V162233', 
+             'V162246', 'V162260', 'V162265', 'V162269', 'V162271', 
+             'V162290')
+X = X[, var_name]
+# extract complete cases
+complete_ind = (apply(X <= 0,MARGIN = 1, sum) == 0)
+X = X[complete_ind,]
+row.names(X) <- NULL
+# fix problem with the lebel of V162290: levels 1,2,4,5 to 1,2,3,4
+ind_4 = X[,'V162290']==4
+X[ind_4,'V162290'] = 3
+ind_5 = X[,'V162290']==5
+X[ind_5,'V162290'] = 4
+# Merge level 3 and 4 from V162192
+ind_4 = X[,'V162192']==4
+X[ind_4,'V162192'] = 3
+# format data into categorical variables
+level = apply(X, MARGIN=2, max)
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
+```
+
+```{r}
+# Make missing data MCAR 30%
+set.seed(0)
+missing_prob = 0.5
+missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
+                'V162179', 'V162192', 'V162207', 'V162209', 
+                'V162214', 'V162246', 'V162269', 'V162271')
+missing_col = which(var_name %in% missing_col)
+X_miss = X
+
+# Make data missing at random for each of the selected variables
+for (col in missing_col) {
+    missing_ind <- rbernoulli(dim(X)[1], p = missing_prob)
+    X_miss[missing_ind, col] <- NA
+}
+```
+
+### Imputation by CART
+
+```{r}
+# Perform missing data imputation with CART, n_imputations = 10
+n_imputations = 10
+
+imputed_df <-  mice(X_miss,m=n_imputations,method="cart",print=F)
+imputation_list = list()
+for (i in 1:n_imputations) {
+  imputation_list[[i]] = complete(imputed_df, i)
+}
+```
+
+
+```{r}
+# Functions to calculate parameters for Rubin's combining rule
+
+calculate_statistics <- function(imputation_list, n_way, missing_col){
+  # Calculate pooled statistics from Rubin method 
+  # imputation_list: a list containing multiple imputation df
+  # n_way: the number of way the contingency table should consider (1 for univariate pmf, 2 for bivariate, etc)
+  # missing_col: The column subjected to missing values
+
+  # return: output_list
+  # a list comprising of mean (q_bar), within group variance (u_bar), 
+  # across group variance (b) and degree of freedom (dof) of each level combination
+  n_observation = dim(imputation_list[[1]])[1]
+  n_var = dim(imputation_list[[1]])[2]
+  n_imputations = length(imputation_list)
+  
+  # Prepare output format
+  q_bar = c() # mean estimate across five imputation sets
+  u_bar = c() # within group variance
+  b = c() # between group variance
+  dof = c() # degree of freedom
+  
+  # Identify possible combinations
+  combinations = combn(1:n_var, n_way)
+  
+  for (i in 1:(dim(combinations)[2])) {
+    variables = combinations[, i]
+    if (any(missing_col %in% variables)) {
+      # if one of the combination has missing values
+      # Calculate contingency table respect to that combination
+      cont_table = c()
+      for (imputation in 1:n_imputations) {
+        # extract dataframe of that imputation
+        d = imputation_list[[imputation]]
+        temp_cont_table = c(table(d[,variables]))
+        temp_cont_table = temp_cont_table/sum(temp_cont_table)
+        cont_table = rbind(cont_table, temp_cont_table)
+      }
+
+      # Calculate MI estimate of P
+      mean_estimate = apply(cont_table, MARGIN = 2, FUN = mean)
+      q_bar = c(q_bar, mean_estimate)
+      
+      # Calculate within group variance: p(1-p)/n
+      within_group_var = apply(cont_table*(1-cont_table)/n_observation, MARGIN = 2, FUN = mean)
+      u_bar = c(u_bar, within_group_var)
+      
+      # Calculate across group variance: sum(p-p_bar)^2/(m-1)
+      across_group_var = apply((t(t(cont_table) - mean_estimate))^2, MARGIN = 2, FUN = sum)/(n_imputations-1)
+      b = c(b, across_group_var)
+      
+      # Calculate Rubin degree of freedom:dof
+      rM = (1+1/n_imputations)*across_group_var/within_group_var
+      dof = c(dof, (n_imputations-1)*(1+1/rM)^2)
+    }
+  }
+  output_list = list(q_bar, u_bar, b, dof)
+  names(output_list) = c('q_bar', 'u_bar', 'b', 'dof')
+  
+  return(output_list)
+}
+```
+
+```{r}
+# compute coverage for different pmf
+n_var = dim(imputation_list[[1]])[2]
+
+max_n_way = 2
+for (n_way in 1:max_n_way) {
+  combinations = combn(1:n_var, n_way)
+  # get true pmf without missing value
+  X_df = data.frame(X)
+  true_pmf = c()
+  for (i in 1:(dim(combinations)[2])) {
+    variables = combinations[, i]
+    if (any(missing_col %in% variables)) {
+      true_pmf_temp = c(table(X_df[,variables]))
+      true_pmf_temp = true_pmf_temp/sum(true_pmf_temp)
+      true_pmf = c(true_pmf, true_pmf_temp)
+    }
+  }
+  
+  # get Rubin combining parameters
+  output_list = calculate_statistics(imputation_list = imputation_list, n_way = n_way, missing_col= missing_col)
+  q_bar = output_list[['q_bar']] # mean estimate
+  u_bar = output_list[['u_bar']] # within group variance
+  b = output_list[['b']] # between group variance
+  dof = output_list[['dof']] # degree of freedom
+  
+  # calculate total sd
+  total_sd = sqrt((1+1/n_imputations)*b + u_bar)
+  
+  # calculate upper bound and lower bound of the 95% CI
+  q_alpha = qt(0.975, df = dof)
+  upper_bound = q_bar + q_alpha*total_sd
+  lower_bound = q_bar - q_alpha*total_sd
+  
+  # gather all info into a dataframe: true pmf, estimated pmf, lower bound, upper bound
+  pmf_df <- data.frame(true_pmf,q_bar, lower_bound, upper_bound)
+  names(pmf_df) <- c('true_pmf', "expectation","Q2.5", "Q97.5")
+  
+  # compute coverage
+  coverage = (lower_bound<=true_pmf) & (true_pmf<=upper_bound)
+  
+  # Make a plot of true pmf vs estimated pmf
+  title = paste('True pmf vs Imputed pmf: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_pointrange(aes(ymin = Q2.5, ymax = Q97.5), size = 0.4, alpha = 0.6, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.2)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_point(size = 1, alpha = 0.7, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.5)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  print(dim(pmf_df))
+  
+  
+  # make coverage plot
+  title = paste('95% CI: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  PredCI_col <- ifelse(coverage==1,"lightblue3","red4")
+  PredCI_lwd <- ifelse(coverage==1,1,2)
+  plot(pmf_df[,1], pch=4, ylim=range(pretty(c(pmf_df[,3], pmf_df[,4]))),
+       xlab="Index", ylab="Joint probabilities", las=1,col="orange4",
+       main=title)
+  segments(seq_len(length(pmf_df[,1])), pmf_df[,3], y1=pmf_df[,4], lend=1,
+           lwd=PredCI_lwd,col=PredCI_col)
+  points(pmf_df[,3], pch="-", bg=PredCI_col); points(pmf_df[,4], pch="-", bg=PredCI_col)
+  legend("topright", inset=.05, bty="n",
+         legend=c("Intervals containing true pmf",
+                  "Intervals NOT containing true pmf","true joint probabilities"),
+         lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
+  
+  plot(pmf_df[,1], pmf_df[,4]-pmf_df[,3], xlab = 'true pmf', ylab = '95% CI interval length')
+  plot(pmf_df[,1], b, xlab = 'true pmf', ylab = 'across-sampled variance')
+  plot(pmf_df[,1], u_bar, xlab = 'true pmf', ylab = 'in-sampled variance')
+  plot(pmf_df[,1], total_sd, xlab = 'true pmf', ylab = 'total sd')
+}
+```
+
+* * *
+
+
+
