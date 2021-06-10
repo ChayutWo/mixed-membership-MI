@@ -601,6 +601,7 @@ for (n_way in 1:2) {
          legend=c("Intervals containing true pmf",
                   "Intervals NOT containing true pmf","true joint probabilities"),
          lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
+  
 }
 ```
 

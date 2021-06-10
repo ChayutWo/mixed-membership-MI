@@ -1,0 +1,135 @@
+
+---
+title: "View results from the modelling of ANES dataset with MMM"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+```{r}
+# Import results
+filepath = './samples_Sort_Beta/post_samples_sort_beta_mcar30.RData'
+load(filepath)
+# Number of observarions and covariates
+N = dim(X)[1]
+p = dim(X)[2]
+K = ncol(BETA)
+
+```
+
+```{r}
+var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 'V162233', 
+             'V162246', 'V162260', 'V162265', 'V162269', 'V162271', 
+             'V162290')
+
+missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
+                'V162179', 'V162192', 'V162207', 'V162209', 
+                'V162214', 'V162246', 'V162269', 'V162271')
+missing_col = which(var_name %in% missing_col)
+```
+
+```{r}
+X_df = data.frame(X) #dataframe for original data without missing values
+for (n_way in 1:2) {
+  combinations = combn(1:p, n_way)
+
+  # calculate true pmf without missingness
+  true_pmf = c()
+  for (i in 1:(dim(combinations)[2])) {
+    variables = combinations[, i]
+    if (any(missing_col %in% variables)) {
+      true_pmf_temp = table(X_df[,variables])
+      true_pmf_temp = c(true_pmf_temp/sum(true_pmf_temp))
+      true_pmf = c(true_pmf, true_pmf_temp)
+    }
+  }
+  
+  # calculate imputed pmf
+  imputed_pmf = c()
+  for (t in 1:(dim(X_SAMPLE)[3])) {
+    # for each imputed dataset, calculate joint pmf
+    X_SAMPLE_df = data.frame(X_SAMPLE[,,t])
+    imputed_pmf_temp = c()
+    for (i in 1:(dim(combinations)[2])) {
+      variables = combinations[, i]
+      if (any(missing_col %in% variables)) {
+        imputed_pmf_temp = c(imputed_pmf_temp,
+                             c(table(X_SAMPLE_df[,variables])/sum(table(X_SAMPLE_df[,variables]))))
+      }
+    }
+    # imputed_pmf has dimension #samples x #pmfs
+    imputed_pmf = rbind(imputed_pmf, imputed_pmf_temp)
+  }
+  
+  # calculate mean and 95% credible interval
+  imputed_pmf_mean = apply(imputed_pmf, MARGIN = 2, FUN = mean)
+  imputed_pmf_ci = apply(imputed_pmf, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.975))
+  pmf_df <- data.frame(true_pmf,imputed_pmf_mean, imputed_pmf_ci[1,], imputed_pmf_ci[2,])
+  names(pmf_df) <- c('true_pmf', "expectation","Q2.5", "Q97.5")
+  
+  # Calculate coverage
+  lower_bound = imputed_pmf_ci[1,]
+  upper_bound = imputed_pmf_ci[2,]
+  coverage = (lower_bound<=true_pmf) & (true_pmf<=upper_bound)
+  
+  
+  # Make a plot of true pmf vs posterior predictive pmf
+  title = paste('True pmf vs Imputed pmf: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_pointrange(aes(ymin = Q2.5, ymax = Q97.5), size = 0.4, alpha = 0.6, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.2)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  
+  plt <- ggplot(data = pmf_df, aes(x = true_pmf, y = expectation))+
+    geom_point(size = 1, alpha = 0.7, colour = 'blue')+
+    geom_abline(intercept = 0, slope = 1, colour = 'red', alpha = 0.5)+
+    scale_x_continuous("true pmf", breaks = seq(0, 1, 0.05)) +
+    scale_y_continuous(expression('imputed pmf')) +
+    ggtitle(title)
+  show(plt)
+  print(dim(pmf_df))
+  
+  
+  # make coverage plot
+  title = paste('95% CI: n_way', n_way, 
+                ', coverage', round(mean(coverage),2))
+  PredCI_col <- ifelse(coverage==1,"lightblue3","red4")
+  PredCI_lwd <- ifelse(coverage==1,1,2)
+  plot(pmf_df[,1], pch=4, ylim=range(pretty(c(pmf_df[,3], pmf_df[,4]))),
+       xlab="Index", ylab="Joint probabilities", las=1,col="orange4",
+       main=title)
+  segments(seq_len(length(pmf_df[,1])), pmf_df[,3], y1=pmf_df[,4], lend=1,
+           lwd=PredCI_lwd,col=PredCI_col)
+  points(pmf_df[,3], pch="-", bg=PredCI_col); points(pmf_df[,4], pch="-", bg=PredCI_col)
+  legend("topright", inset=.05, bty="n",
+         legend=c("Intervals containing true pmf",
+                  "Intervals NOT containing true pmf","true joint probabilities"),
+         lwd=c(1,2,1), lty=c(1,1,NA),pch=c(NA,NA,4), col=c("lightblue3","red4","orange4"))
+  plot(pmf_df[,1], pmf_df[,4]-pmf_df[,3], xlab = 'true pmf', ylab = '95% CI interval length')
+  
+}
+```
+
+
+* * *
+
+
+

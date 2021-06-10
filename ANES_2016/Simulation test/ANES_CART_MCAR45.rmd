@@ -1,6 +1,6 @@
 
 ---
-title: "ANES dataset imputed with CART - MCAR 30%"
+title: "ANES dataset imputed with CART - MCAR 45%"
 output:
   pdf_document: default
   html_document:
@@ -80,9 +80,9 @@ for (col_index in 1:ncol(X)) {
 ```
 
 ```{r}
-# Make missing data MCAR 30%
+# Make missing data MCAR 45%
 set.seed(0)
-missing_prob = 0.3
+missing_prob = 0.45
 missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
                 'V162179', 'V162192', 'V162207', 'V162209', 
                 'V162214', 'V162246', 'V162269', 'V162271')
