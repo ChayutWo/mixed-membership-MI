@@ -1,6 +1,6 @@
 
 ---
-title: "View results from the modelling of ANES dataset with MMM"
+title: "Calculate cohesion and posterior probability of disagreement"
 output:
   pdf_document: default
   html_document:
@@ -14,6 +14,9 @@ knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
 library(ggplot2)
 require(MCMCpack)
 library(RColorBrewer)
+library(dplyr)
+library(readr)
+library(xtable)
 ```
 
 * * *
@@ -33,7 +36,13 @@ K = ncol(BETA)
 
 ```{r}
 # ANES information for plotting
-
+#var_list = c('V162140', 'V162148', 'V162158', 'V162179', 'V162192', 'V162209', 'V162214', 'V162269')
+var_list = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 'V162233', 
+             'V162246', 'V162260', 'V162265', 'V162269', 'V162271', 
+             'V162290')
 # variable names
 var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
              'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
@@ -186,87 +195,141 @@ level = apply(X, MARGIN=2, max)
 # Combine everything into a metadata list for lookup
 meta = list()
 for (i in 1:p) {
-  # description, number of levels, index
+  # description, number of levels, level description, index
   meta[[var_name[i]]] = c(description[i], level[i], level_desc[i], i)
 }
 ```
 
-### Mixed-Membership Model (MMM) MCMC convergence
+### Cohesion: max{Phi_k^(j)}/min{Phi_k^(j)}
 
 ```{r}
-# Convergence checking Beta a after accounting for burnin and thining
-beta_df = BETA
-colnames(beta_df) <- 1:K
-matplot(1:dim(beta_df)[1], beta_df, 
-        type = 'l', ylab = 'Beta_k', xlab = 'trials', 
-        main = 'Checking stability of sampled Beta')
+# Calculate cohesion of "num_big_cluster" extreme profiles with respect to variables of interest
+# cohesion is a matrix of size #var x #cluster
+# cohesion_jk represents posterior mean of max{Phi_k^(j)}/min{Phi_k^(j)}
 
-```
+num_big_cluster = 7 # interpret only num_big_cluster number of clusters
+cohesion = matrix(0, length(var_list), num_big_cluster)
 
-```{r}
-# Check number of active cluster 
-Z_df = Z
-active_cluster = array(0, dim(Z_df)[3])
-for (idx in 1:dim(active_cluster)) {
-  for (k in 1:K) {
-    if (sum(Z_df[,,idx]==k)!=0) {
-      active_cluster[idx] = active_cluster[idx] + 1
-    }
+for (j in 1:length(var_list)) {
+  # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+  var = var_list[j]
+  idx = meta[[var]][4]
+  Phi_varj = PHI[[strtoi(idx)]]
+  for (k in 1:num_big_cluster){
+    # For each cluster of interest, extract Phi_k^(j) and calculate cohesion metric
+    Phi_k_varj = Phi_varj[k,,]
+    # get max{Phi_k^(j)} and min{Phi_k^(j)} for each posterior samples: max_phi, min_phi
+    max_phi = apply(Phi_k_varj, MARGIN = 2, max)
+    min_phi = apply(Phi_k_varj, MARGIN = 2, min)
+    # Calculate cohesion for cluster k and variable j
+    cohesion[j,k] = mean(max_phi/min_phi)
   }
 }
-plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active clusters',
-     xlab = 'trials', main = 'Checking number of active clusters during MCMC', ylim = c(1,K))
-
+rownames(cohesion) <- var_list
+colnames(cohesion) <- paste('group', 1:num_big_cluster)
+print(cohesion)
+plot(x = 1:num_big_cluster, y = apply(cohesion, MARGIN = 2, mean), 
+     ylab = 'mean of cohesion score', xlab = 'cluster index')
 ```
 
-### Customized plots
+### Cohesion (new): (max{Phi_k^(j)} - min{Phi_k^(j)})/max{Phi_k^(j)}
 
-```{r, fig.width=3, fig.height = 4}
-# View result for particular variable over different groups (7 biggest groups)
-var = 'V162290' # change this value
+```{r}
+# New way to compute cohesion to solve the problem when min{Phi_k^(j)} is too small
+# Calculate cohesion_ratio of "num_big_cluster" extreme profiles with respect to variables of interest
+# cohesion_ratio is a matrix of size #var x #cluster
+# cohesion_ratio_jk represents posterior mean of (max{Phi_k^(j)} - min{Phi_k^(j)})/max{Phi_k^(j)}
 
+num_big_cluster = 7 # interpret only num_big_cluster number of clusters
+cohesion_ratio = matrix(0, length(var_list), num_big_cluster)
 
-# plotting section
-par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
-idx = meta[[var]][4] # index for that variable
-for (k in 1:7) {
-  # plot PHI for variable named var and for group k
-  phi = t(PHI[[strtoi(idx)]][k,,]) # matrix of size samples x # levels
-  num_level= strtoi(meta[[var]][2])
-  matplot(1:dim(phi)[1], phi, 
-          type = 'l', ylab = 'phi', xlab = '',
-          main = paste('group: ', k), ylim = c(0,1),
-          col=topo.colors(num_level), lwd = 1.5, cex.main = 1)
-  legend('right', legend = 1:num_level, col=topo.colors(num_level), lwd = 1.5)
+for (j in 1:length(var_list)) {
+  # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+  var = var_list[j]
+  idx = meta[[var]][4]
+  Phi_varj = PHI[[strtoi(idx)]]
+  for (k in 1:num_big_cluster){
+    # For each cluster of interest, extract Phi_k^(j) and calculate cohesion_ratio metric
+    Phi_k_varj = Phi_varj[k,,]
+    # get max{Phi_k^(j)} and min{Phi_k^(j)} for each posterior samples: max_phi, min_phi
+    max_phi = apply(Phi_k_varj, MARGIN = 2, max)
+    min_phi = apply(Phi_k_varj, MARGIN = 2, min)
+    # Calculate cohesion_ratio for cluster k and variable j
+    cohesion_ratio[j,k] = mean((max_phi-min_phi)/max_phi)
+  }
 }
-# create empty plot for level description
-plot(c(0, 1), c(0, 1), ann = F, bty = 'n', type = 'n', xaxt = 'n', yaxt = 'n')
-text(x = 0.5, y = 0.5, meta[[var]][3], cex = 1.2, col = "black")
-title_text = paste(var,': ', meta[[var]][1])
-title(title_text, line = 2, outer = TRUE)
+rownames(cohesion_ratio) <- var_list
+colnames(cohesion_ratio) <- paste('group', 1:num_big_cluster)
+print(cohesion_ratio)
+plot(x = 1:num_big_cluster, y = apply(cohesion_ratio, MARGIN = 2, mean), 
+     ylab = 'mean of cohesion_ratio score', xlab = 'cluster index')
 ```
 
-```{r, fig.width=4, fig.height=4}
-# plot selected variables for the selected group
-group = 7 # change this value
-var_list = c('V162140', 'V162148', 'V162158', 'V162179', 'V162192', 'V162209', 'V162214', 'V162269')
+### Posterior probability of disagreement
 
-# plotting section
-par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
-
-for (var in var_list) {
-  idx = meta[[var]][4] # index for that variable
-  # plot PHI for variable named var and for the selected group
-  phi = t(PHI[[strtoi(idx)]][group,,]) # matrix of size samples x # levels
-  num_level= strtoi(meta[[var]][2])
-  matplot(1:dim(phi)[1], phi, 
-          type = 'l', ylab = 'phi', xlab = '',
-          main = paste(var,': ', meta[[var]][1]), ylim = c(0,1),
-          col=topo.colors(num_level), lwd = 1.5, cex.main = 0.7)
-  legend('right', legend = 1:num_level, col=topo.colors(num_level), lwd = 1.5)
+```{r}
+# disagreement_df is a matrix of size #var x #combination of groups
+# disagreement is posterior mean of argmax{Phi_k^(j)} == argmax{Phi_k'^(j)} for k and k' clusters
+group_list = c(1,2,3,4,6,7) # clusters to be compared pairwise
+combinations = combn(group_list, 2)
+disagreement = matrix(0, length(var_list), dim(combinations)[2])
+for (i in 1:(dim(combinations)[2])) {
+  #for each combination of groups, calculate the disagreement probability
+  cluster = combinations[, i]
+  for (j in 1:length(var_list)) {
+    # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+    var = var_list[j]
+    idx = meta[[var]][4]
+    Phi_varj = PHI[[strtoi(idx)]]
+    # Get their respective Phi_k^(j)
+    Phi_varj_1 = Phi_varj[cluster[1],,]
+    Phi_varj_2 = Phi_varj[cluster[2],,]
+    # Find max position of Phi_k^(j)
+    argmax_1 = max.col(t(Phi_varj_1))
+    argmax_2 = max.col(t(Phi_varj_2))
+    disagreement[j, i] = mean(argmax_1 != argmax_2)
+  }
 }
-title_text = paste('group: ', group)
-title(title_text, line = 2, outer = TRUE)
+rownames(disagreement) <- var_list
+colnames(disagreement) <- paste('group ',combinations[1,], '&', combinations[2,], sep = '')
+print(disagreement)
+```
+
+### Posterior probability of disagreement with cutoffs
+
+```{r}
+# disagreement_df is a matrix of size #var x #combination of groups
+# disagreement is posterior mean of argmax{Phi_k^(j)} == argmax{Phi_k'^(j)} for k and k' clusters
+# apply cutoff to disagreement and count the number of questions they disagree on
+group_list = c(1,2,3,4,6,7) # clusters to be compared pairwise
+combinations = combn(group_list, 2)
+disagreement = matrix(0, length(var_list), dim(combinations)[2])
+for (i in 1:(dim(combinations)[2])) {
+  #for each combination of groups, calculate the disagreement probability
+  cluster = combinations[, i]
+  for (j in 1:length(var_list)) {
+    # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+    var = var_list[j]
+    idx = meta[[var]][4]
+    Phi_varj = PHI[[strtoi(idx)]]
+    # Get their respective Phi_k^(j)
+    Phi_varj_1 = Phi_varj[cluster[1],,]
+    Phi_varj_2 = Phi_varj[cluster[2],,]
+    # Find max position of Phi_k^(j)
+    argmax_1 = max.col(t(Phi_varj_1))
+    argmax_2 = max.col(t(Phi_varj_2))
+    disagreement[j, i] = mean(argmax_1 != argmax_2)
+  }
+}
+rownames(disagreement) <- var_list
+colnames(disagreement) <- paste('group ',combinations[1,], '&', combinations[2,], sep = '')
+
+# apply cutoff and sum across all variables
+cutoff = 0.75
+disagreement_indicator = (disagreement >= cutoff)
+disagreement_ratio = apply(disagreement_indicator, MARGIN = 2, mean)
+print(disagreement)
+print(disagreement_ratio)
 ```
 
 * * *
