@@ -1,0 +1,241 @@
+
+---
+title: "View results from the modelling of ANES dataset with MMM"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+```{r}
+# Import results
+filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta.RData'
+load(filepath)
+# Number of observarions and covariates
+N = dim(X)[1]
+p = dim(X)[2]
+K = ncol(BETA)
+```
+
+```{r}
+# ANES information for plotting
+
+# variable names
+var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 'V162233', 
+             'V162246', 'V162260', 'V162265', 'V162269', 'V162271', 
+             'V162290')
+
+# variable description
+description = c('Agree/disagree: Better if rest of world more like America', 
+                'How much opportunity is there in America today to get ahead?',
+                'Favor or oppose tax on millionaires',
+                'Health Care Law effect on cost of health care',
+                'Favor or oppose vaccines in schools',
+                'Favor or oppose government reducing income inequality',
+                'How likely immigration will take away jobs',
+                'Agree/disagree: Country needs strong leader to take us back to true path',
+                'Favor or oppose free trade agreements with other countries',
+                'Should marijuana be legal',
+                'Should the government do more or less to regulate banks',
+                'Should the minimum wage be raised',
+                'Increase or decrease government spending to help people pay for health care',
+                'Agree/disagree: world is changing and we should adjust',
+                'Agree/disagree: newer lifestyles breaking down society',
+                'Agree/disagree: We should be more tolerant of other moral standards',
+                'Agree/disagree: past slavery and discrimination made it difficult for blacks to work their way out of the lower class',
+                'Agree/disagree: if blacks would only try harder they could be just as well off as whites',
+                'Should the news media pay more attention to discrimination against women?',
+                'Do women complaining about discrimination cause more problems',
+                'Agree/disagree: If people were treated more equally in this country we would have many fewer problems',
+                'Agree/disagree: Most politicians do not care about the people',
+                'Agree/disagree: Most politicians care only about the interests of the rich and powerful',
+                'Agree/disagree: America’s culture is generally harmed by immigrants',
+                'Agree/disagree: To be truly American important to have been born in U.S.',
+                'Satisfied with way democracy works in the U.S.'
+                )
+
+# full level description for each variable
+level_desc = c('1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=A great deal/A lot,
+2= A moderate amount/A little,
+3=None',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Increased,
+2= Decreased,
+3= Had no effect',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Extremely likely,
+2= Very likely/Somewhat likely,
+3=Not at all likely',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=More,
+2= Less,
+3= The same',
+'1=Raised,
+2= Kept the same,
+3=Lowered or Eliminated',
+'1=Increase,
+2= Decrease,
+3= No change',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=More attention,
+2= Less attention,
+3=Same amount of attention',
+'1=Always/Most of the time,
+2=About half the time/Some of the time,
+3=Never',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Very important,
+2=Fairly important/Not very important,
+3=Not important at all', 
+'1= Very satisfied,
+2=Fairly satisfied/Not very satisfied,
+3=Not at all satisfied')
+
+# Number of levels for each variable
+level = apply(X, MARGIN=2, max)
+
+# Combine everything into a metadata list for lookup
+meta = list()
+for (i in 1:p) {
+  # description, number of levels, index
+  meta[[var_name[i]]] = c(description[i], level[i], level_desc[i], i)
+}
+```
+
+### Mixed-Membership Model (MMM) MCMC convergence
+
+```{r}
+# Convergence checking Beta a after accounting for burnin and thining
+beta_df = BETA
+colnames(beta_df) <- 1:K
+matplot(1:dim(beta_df)[1], beta_df, 
+        type = 'l', ylab = 'Beta_k', xlab = 'trials', 
+        main = 'Checking stability of sampled Beta')
+
+```
+
+```{r}
+# Check number of active cluster 
+Z_df = Z
+active_cluster = array(0, dim(Z_df)[3])
+for (idx in 1:dim(active_cluster)) {
+  for (k in 1:K) {
+    if (sum(Z_df[,,idx]==k)!=0) {
+      active_cluster[idx] = active_cluster[idx] + 1
+    }
+  }
+}
+plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active clusters',
+     xlab = 'trials', main = 'Checking number of active clusters during MCMC', ylim = c(1,K))
+
+```
+
+### Customized plots
+
+```{r, fig.width=3, fig.height = 4}
+# View result for particular variable over different groups (7 biggest groups)
+var = 'V162290' # change this value
+
+# plotting section
+par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
+idx = meta[[var]][4] # index for that variable
+for (k in 1:7) {
+  # plot PHI for variable named var and for group k
+  phi = t(PHI[[strtoi(idx)]][k,,]) # matrix of size samples x # levels
+  num_level= strtoi(meta[[var]][2])
+  matplot(1:dim(phi)[1], phi, 
+          type = 'l', ylab = 'phi', xlab = '',
+          main = paste('group: ', k), ylim = c(0,1),
+          col=topo.colors(num_level), lwd = 1.5, cex.main = 1)
+  legend('right', legend = 1:num_level, col=topo.colors(num_level), lwd = 1.5)
+}
+# create empty plot for level description
+plot(c(0, 1), c(0, 1), ann = F, bty = 'n', type = 'n', xaxt = 'n', yaxt = 'n')
+text(x = 0.5, y = 0.5, meta[[var]][3], cex = 1.2, col = "black")
+title_text = paste(var,': ', meta[[var]][1])
+title(title_text, line = 2, outer = TRUE)
+```
+
+```{r, fig.width=4, fig.height=4}
+# plot selected variables for the selected group
+group = 4 # change this value
+var_list = c('V162140', 'V162148', 'V162158', 'V162179', 'V162192', 'V162209', 'V162214', 'V162269')
+
+# plotting section
+par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
+
+for (var in var_list) {
+  idx = meta[[var]][4] # index for that variable
+  # plot PHI for variable named var and for the selected group
+  phi = t(PHI[[strtoi(idx)]][group,,]) # matrix of size samples x # levels
+  num_level= strtoi(meta[[var]][2])
+  matplot(1:dim(phi)[1], phi, 
+          type = 'l', ylab = 'phi', xlab = '',
+          main = paste(var,': ', meta[[var]][1]), ylim = c(0,1),
+          col=topo.colors(num_level), lwd = 1.5, cex.main = 0.7)
+  legend('right', legend = 1:num_level, col=topo.colors(num_level), lwd = 1.5)
+}
+title_text = paste('group: ', group)
+title(title_text, line = 2, outer = TRUE)
+```
+
+* * *
+
+
+
