@@ -1,0 +1,309 @@
+
+---
+title: "Calculate cohesion and posterior probability of disagreement for data with merged levels"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+library(dplyr)
+library(readr)
+library(xtable)
+library(gplots)
+```
+
+* * *
+```{r}
+# Import results
+#filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long.RData'
+filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
+load(filepath)
+# Number of observarions and covariates
+N = dim(X)[1]
+p = dim(X)[2]
+K = ncol(BETA)
+```
+
+```{r}
+# ANES information for plotting
+#var_list = c('V162140', 'V162148', 'V162158', 'V162179', 'V162192', 'V162209', 'V162214', 'V162269')
+var_list = c('V162123', 'V162134', 'V162140', 'V162145',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 
+             'V162246', 'V162260', 'V162269', 'V162271', 
+             'V162290')
+# variable names
+var_name = c('V162123', 'V162134', 'V162140', 'V162145',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 
+             'V162246', 'V162260', 'V162269', 'V162271', 
+             'V162290')
+
+# variable description
+description = c('Agree/disagree: Better if rest of world more like America', 
+                'How much opportunity is there in America today to get ahead?',
+                'Favor or oppose tax on millionaires',
+                'Health Care Law effect on cost of health care',
+                'Favor or oppose government reducing income inequality',
+                'How likely immigration will take away jobs',
+                'Agree/disagree: Country needs strong leader to take us back to true path',
+                'Favor or oppose free trade agreements with other countries',
+                'Should marijuana be legal',
+                'Should the government do more or less to regulate banks',
+                'Should the minimum wage be raised',
+                'Increase or decrease government spending to help people pay for health care',
+                'Agree/disagree: world is changing and we should adjust',
+                'Agree/disagree: newer lifestyles breaking down society',
+                'Agree/disagree: We should be more tolerant of other moral standards',
+                'Agree/disagree: past slavery and discrimination made it difficult for blacks to work their way out of the lower class',
+                'Agree/disagree: if blacks would only try harder they could be just as well off as whites',
+                'Should the news media pay more attention to discrimination against women?',
+                'Agree/disagree: If people were treated more equally in this country we would have many fewer problems',
+                'Agree/disagree: Most politicians do not care about the people',
+                'Agree/disagree: America’s culture is generally harmed by immigrants',
+                'Agree/disagree: To be truly American important to have been born in U.S.',
+                'Satisfied with way democracy works in the U.S.'
+                )
+
+# full level description for each variable
+level_desc = c('1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=A great deal/A lot,
+2= A moderate amount/A little,
+3=None',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Increased,
+2= Decreased,
+3= Had no effect',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Extremely likely,
+2= Very likely/Somewhat likely,
+3=Not at all likely',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=Favor,
+2= Oppose,
+3= Neither favor nor oppose',
+'1=More,
+2= Less,
+3= The same',
+'1=Raised,
+2= Kept the same,
+3=Lowered or Eliminated',
+'1=Increase,
+2= Decrease,
+3= No change',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=More attention,
+2= Less attention,
+3=Same amount of attention',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Agree,
+2=Neither agree nor disagree,
+3=Disagree',
+'1=Very important,
+2=Fairly important/Not very important,
+3=Not important at all', 
+'1= Very satisfied,
+2=Fairly satisfied/Not very satisfied,
+3=Not at all satisfied')
+
+# Number of levels for each variable
+level = apply(X, MARGIN=2, max)
+
+# Combine everything into a metadata list for lookup
+meta = list()
+for (i in 1:p) {
+  # description, number of levels, index
+  meta[[var_name[i]]] = c(description[i], level[i], level_desc[i], i)
+}
+```
+
+### Cohesion: max{Phi_k^(j)}/min{Phi_k^(j)}
+
+```{r}
+# Calculate cohesion of "num_big_cluster" extreme profiles with respect to variables of interest
+# cohesion is a matrix of size #var x #cluster
+# cohesion_jk represents posterior mean of max{Phi_k^(j)}/min{Phi_k^(j)}
+
+num_big_cluster = 6 # interpret only num_big_cluster number of clusters
+cohesion = matrix(0, length(var_list), num_big_cluster)
+
+for (j in 1:length(var_list)) {
+  # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+  var = var_list[j]
+  idx = meta[[var]][4]
+  Phi_varj = PHI[[strtoi(idx)]]
+  for (k in 1:num_big_cluster){
+    # For each cluster of interest, extract Phi_k^(j) and calculate cohesion metric
+    Phi_k_varj = Phi_varj[k,,]
+    # get max{Phi_k^(j)} and min{Phi_k^(j)} for each posterior samples: max_phi, min_phi
+    max_phi = apply(Phi_k_varj, MARGIN = 2, max)
+    min_phi = apply(Phi_k_varj, MARGIN = 2, min)
+    # Calculate cohesion for cluster k and variable j
+    cohesion[j,k] = mean(max_phi/min_phi)
+  }
+}
+rownames(cohesion) <- var_list
+colnames(cohesion) <- paste('group', 1:num_big_cluster)
+print(cohesion)
+plot(x = 1:num_big_cluster, y = apply(cohesion, MARGIN = 2, mean), 
+     ylab = 'mean of cohesion score', xlab = 'cluster index')
+```
+
+### Cohesion (new): (max{Phi_k^(j)} - min{Phi_k^(j)})/max{Phi_k^(j)}
+
+```{r}
+# New way to compute cohesion to solve the problem when min{Phi_k^(j)} is too small
+# Calculate cohesion_ratio of "num_big_cluster" extreme profiles with respect to variables of interest
+# cohesion_ratio is a matrix of size #var x #cluster
+# cohesion_ratio_jk represents posterior mean of (max{Phi_k^(j)} - min{Phi_k^(j)})/max{Phi_k^(j)}
+
+num_big_cluster = 6 # interpret only num_big_cluster number of clusters
+cohesion_ratio = matrix(0, length(var_list), num_big_cluster)
+max_response = matrix(0, length(var_list), num_big_cluster)
+for (j in 1:length(var_list)) {
+  # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+  var = var_list[j]
+  idx = meta[[var]][4]
+  Phi_varj = PHI[[strtoi(idx)]]
+  for (k in 1:num_big_cluster){
+    # For each cluster of interest, extract Phi_k^(j) and calculate cohesion_ratio metric
+    Phi_k_varj = Phi_varj[k,,]
+    # get max{Phi_k^(j)} and min{Phi_k^(j)} for each posterior samples: max_phi, min_phi
+    max_phi = apply(Phi_k_varj, MARGIN = 2, max)
+    min_phi = apply(Phi_k_varj, MARGIN = 2, min)
+    # Calculate cohesion_ratio for cluster k and variable j
+    cohesion_ratio[j,k] = mean((max_phi-min_phi)/max_phi)
+    max_response[j,k] = mean(max_phi)
+  }
+}
+rownames(cohesion_ratio) <- var_list
+colnames(cohesion_ratio) <- paste('group', 1:num_big_cluster)
+print(cohesion_ratio)
+plot(x = 1:num_big_cluster, y = apply(cohesion_ratio, MARGIN = 2, mean), 
+     ylab = 'mean of cohesion_ratio score', xlab = 'cluster index')
+```
+
+### Posterior probability of disagreement with cutoffs
+
+```{r}
+# disagreement_df is a matrix of size #var x #combination of groups
+# disagreement is posterior mean of argmax{Phi_k^(j)} == argmax{Phi_k'^(j)} for k and k' clusters
+# apply cutoff to disagreement and count the number of questions they disagree on
+group_list = 1:num_big_cluster # clusters to be compared pairwise
+combinations = combn(group_list, 2)
+disagreement = matrix(0, length(var_list), dim(combinations)[2])
+for (i in 1:(dim(combinations)[2])) {
+  #for each combination of groups, calculate the disagreement probability
+  cluster = combinations[, i]
+  for (j in 1:length(var_list)) {
+    # For each variable of interest, get its index and extract posterior samples of Phi^j: Phi_varj
+    var = var_list[j]
+    idx = meta[[var]][4]
+    Phi_varj = PHI[[strtoi(idx)]]
+    # Get their respective Phi_k^(j)
+    Phi_varj_1 = Phi_varj[cluster[1],,]
+    Phi_varj_2 = Phi_varj[cluster[2],,]
+    # Find max position of Phi_k^(j)
+    argmax_1 = max.col(t(Phi_varj_1))
+    argmax_2 = max.col(t(Phi_varj_2))
+    disagreement[j, i] = mean(argmax_1 != argmax_2)
+  }
+}
+rownames(disagreement) <- var_list
+colnames(disagreement) <- paste('group ',combinations[1,], '&', combinations[2,], sep = '')
+
+# apply cutoff and sum across all variables
+cutoff = 0.75
+disagreement_indicator = (disagreement >= cutoff)
+disagreement_ratio = apply(disagreement_indicator, MARGIN = 2, mean)
+print(disagreement)
+```
+
+```{r, fig.height=3, fig.width=4}
+# original cohesion is hard to interpret for large values (small min pmf)
+heatmap.2(cohesion, dendrogram="row", col=bluered, main = 'cohesion (original)', cexCol = 0.9)
+# ln cohesion make the dist more uniform across different values of original cohesion
+heatmap.2(log(cohesion), dendrogram="row", col=bluered, main = 'ln(cohesion)', cexCol = 0.9)
+# cohesion ratio result in a lot of values that are close to 1.00 as pmf min gets smaller
+heatmap.2(cohesion_ratio, dendrogram="row", col=bluered, main = 'cohesion_ratio', cexCol = 0.9)
+heatmap.2(disagreement, dendrogram="col", col=bluered,
+          main = 'disagreement (original)', cexCol = 0.9)
+# after applying the cutoff of 0.75 to the disagreement
+heatmap.2(disagreement_indicator*1, dendrogram="col", 
+          col=bluered, main = 'disagreement_indicator', cexCol = 0.9)
+# the result from new metrics: the disagreement with cutoffs -> may need to be interpreted by taking the topics of questions into account.
+barplot(sort(disagreement_ratio), las = 2, main = 'disagreement ratio', ylim = c(0,1))
+```
+
+```{r, fig.width=4,fig.height=2}
+# test sensitivity of disagreement ratio to the selected cutoff
+for (i in 5:10) {
+  # from 0.5 to 1.0
+  cutoff = 0.1*i
+  dis_indicator = (disagreement >= cutoff)
+  dis_ratio = apply(dis_indicator, MARGIN = 2, mean)
+  barplot(sort(dis_ratio), las = 2, 
+          main = paste('disagreement ratio with cutoff =', cutoff), 
+          ylim = c(0,1))
+}
+```
+
+```{r, fig.width=3,fig.height=2}
+# test sensitivity of disagreement ratio to the selected cutoff
+# should not choose cutoffs too close to 1
+dis_matrix = matrix(NA,nrow = ncol(disagreement), ncol = length(1:50))
+for (i in 1:50) {
+  # from 0.51 to 1.0
+  cutoff = 0.01*i + 0.5
+  dis_indicator = (disagreement >= cutoff)
+  dis_ratio = apply(dis_indicator, MARGIN = 2, mean)
+  dis_matrix[,i] = dis_ratio
+}
+matplot(x = ((1:50)*0.01+0.5), y = t(dis_matrix), type = "l", 
+        xlab='cutoff', ylab = 'disagreement', 
+        main = 'disagreement at different cutoffs')
+```
+* * *
+
+
+

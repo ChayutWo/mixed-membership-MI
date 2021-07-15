@@ -19,7 +19,8 @@ library(RColorBrewer)
 * * *
 ```{r}
 # Import results
-filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta.RData'
+#filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long.RData'
+filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
 load(filepath)
 # Number of observarions and covariates
 N = dim(X)[1]
@@ -31,11 +32,11 @@ K = ncol(BETA)
 # ANES information for plotting
 
 # variable names
-var_name = c('V162123', 'V162134', 'V162140', 'V162145', 'V162146',
+var_name = c('V162123', 'V162134', 'V162140', 'V162145',
              'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
              'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
-             'V162209', 'V162212', 'V162214', 'V162231', 'V162233', 
-             'V162246', 'V162260', 'V162265', 'V162269', 'V162271', 
+             'V162209', 'V162212', 'V162214', 'V162231', 
+             'V162246', 'V162260', 'V162269', 'V162271', 
              'V162290')
 
 # variable description
@@ -43,7 +44,6 @@ description = c('Agree/disagree: Better if rest of world more like America',
                 'How much opportunity is there in America today to get ahead?',
                 'Favor or oppose tax on millionaires',
                 'Health Care Law effect on cost of health care',
-                'Favor or oppose vaccines in schools',
                 'Favor or oppose government reducing income inequality',
                 'How likely immigration will take away jobs',
                 'Agree/disagree: Country needs strong leader to take us back to true path',
@@ -58,10 +58,8 @@ description = c('Agree/disagree: Better if rest of world more like America',
                 'Agree/disagree: past slavery and discrimination made it difficult for blacks to work their way out of the lower class',
                 'Agree/disagree: if blacks would only try harder they could be just as well off as whites',
                 'Should the news media pay more attention to discrimination against women?',
-                'Do women complaining about discrimination cause more problems',
                 'Agree/disagree: If people were treated more equally in this country we would have many fewer problems',
                 'Agree/disagree: Most politicians do not care about the people',
-                'Agree/disagree: Most politicians care only about the interests of the rich and powerful',
                 'Agree/disagree: America’s culture is generally harmed by immigrants',
                 'Agree/disagree: To be truly American important to have been born in U.S.',
                 'Satisfied with way democracy works in the U.S.'
@@ -80,9 +78,6 @@ level_desc = c('1=Agree,
 '1=Increased,
 2= Decreased,
 3= Had no effect',
-'1=Favor,
-2= Oppose,
-3= Neither favor nor oppose',
 '1=Favor,
 2= Oppose,
 3= Neither favor nor oppose',
@@ -125,12 +120,6 @@ level_desc = c('1=Agree,
 '1=More attention,
 2= Less attention,
 3=Same amount of attention',
-'1=Always/Most of the time,
-2=About half the time/Some of the time,
-3=Never',
-'1=Agree,
-2=Neither agree nor disagree,
-3=Disagree',
 '1=Agree,
 2=Neither agree nor disagree,
 3=Disagree',
@@ -190,8 +179,14 @@ plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active
 
 ```{r, fig.width=3, fig.height = 4}
 # View result for particular variable over different groups (7 biggest groups)
-# interesting var: V162123, V162214, V162209, V162170, V162207, V162208
-var = 'V162265' # change this value
+# interesting var: V162123, V162214, V162209, V162207, V162208, V162158
+# group 2 and 4 agree on V162260, V162134, V162176
+# Why V162140 tax on millionaire has that outcome? Why V162148 has that outcome?
+# Super interesting V162170 Obama year
+# V162180 Democrat favors more regulation
+# V162192 Democrat favors increasing min wage
+# V162179 I believe it is pretty split in real world with dem a bit more favor toward legalization
+var = 'V162269' # change this value
 
 # plotting section
 par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
