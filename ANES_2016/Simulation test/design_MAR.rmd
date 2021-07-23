@@ -1,0 +1,302 @@
+
+---
+title: "Design logistic function to make data MAR 30%"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+```{r}
+# here is the code to generate final dataset to be used in modelling
+filepath = '../anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+X = read.csv(filepath,sep= '|')
+# select variables: 23 variables
+var_name = c('V162123', 'V162134', 'V162140', 'V162145',
+             'V162148', 'V162158', 'V162170', 'V162176', 'V162179',
+             'V162180', 'V162192', 'V162193', 'V162207', 'V162208',
+             'V162209', 'V162212', 'V162214', 'V162231', 
+             'V162246', 'V162260', 'V162269', 'V162271', 
+             'V162290')
+X = X[, var_name]
+# extract complete cases
+complete_ind = (apply(X <= 0,MARGIN = 1, sum) == 0)
+X = X[complete_ind,]
+row.names(X) <- NULL
+# fix problem with the lebel of V162290: levels 1,2,4,5 to 1,2,3,4
+ind_4 = X[,'V162290']==4
+X[ind_4,'V162290'] = 3
+ind_5 = X[,'V162290']==5
+X[ind_5,'V162290'] = 4
+# Merge level 3 and 4 from V162192
+ind_4 = X[,'V162192']==4
+X[ind_4,'V162192'] = 3
+
+## Merge levels of response to simplify the model: old levels -> new level assignment
+# V162123: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162123']==1) | (X[,'V162123']==2)
+ind_2 = (X[,'V162123']==3)
+ind_3 = (X[,'V162123']==4) | (X[,'V162123']==5)
+X[ind_1,'V162123'] = 1
+X[ind_2,'V162123'] = 2
+X[ind_3,'V162123'] = 3
+# V162134: 1+2->1, 3+4->2, 5->3
+ind_1 = (X[,'V162134']==1) | (X[,'V162134']==2)
+ind_2 = (X[,'V162134']==3) | (X[,'V162134']==4)
+ind_3 = (X[,'V162134']==5)
+X[ind_1,'V162134'] = 1
+X[ind_2,'V162134'] = 2
+X[ind_3,'V162134'] = 3
+# V162140: no change
+# V162145: no change
+# V162148: no change
+# V162158: 1->1, 2+3->2, 4->3
+ind_1 = (X[,'V162158']==1)
+ind_2 = (X[,'V162158']==2) | (X[,'V162158']==3)
+ind_3 = (X[,'V162158']==4)
+X[ind_1,'V162158'] = 1
+X[ind_2,'V162158'] = 2
+X[ind_3,'V162158'] = 3
+# V162170: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162170']==1) | (X[,'V162170']==2)
+ind_2 = (X[,'V162170']==3)
+ind_3 = (X[,'V162170']==4) | (X[,'V162170']==5)
+X[ind_1,'V162170'] = 1
+X[ind_2,'V162170'] = 2
+X[ind_3,'V162170'] = 3
+# V162176: no change
+# V162179: no change
+# V162180: no change
+# V162192: no change
+# V162193: no change
+# V162207: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162207']==1) | (X[,'V162207']==2)
+ind_2 = (X[,'V162207']==3)
+ind_3 = (X[,'V162207']==4) | (X[,'V162207']==5)
+X[ind_1,'V162207'] = 1
+X[ind_2,'V162207'] = 2
+X[ind_3,'V162207'] = 3
+# V162208: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162208']==1) | (X[,'V162208']==2)
+ind_2 = (X[,'V162208']==3)
+ind_3 = (X[,'V162208']==4) | (X[,'V162208']==5)
+X[ind_1,'V162208'] = 1
+X[ind_2,'V162208'] = 2
+X[ind_3,'V162208'] = 3
+# V162209: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162209']==1) | (X[,'V162209']==2)
+ind_2 = (X[,'V162209']==3)
+ind_3 = (X[,'V162209']==4) | (X[,'V162209']==5)
+X[ind_1,'V162209'] = 1
+X[ind_2,'V162209'] = 2
+X[ind_3,'V162209'] = 3
+# V162212: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162212']==1) | (X[,'V162212']==2)
+ind_2 = (X[,'V162212']==3)
+ind_3 = (X[,'V162212']==4) | (X[,'V162212']==5)
+X[ind_1,'V162212'] = 1
+X[ind_2,'V162212'] = 2
+X[ind_3,'V162212'] = 3
+# V162214: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162214']==1) | (X[,'V162214']==2)
+ind_2 = (X[,'V162214']==3)
+ind_3 = (X[,'V162214']==4) | (X[,'V162214']==5)
+X[ind_1,'V162214'] = 1
+X[ind_2,'V162214'] = 2
+X[ind_3,'V162214'] = 3
+# V162231: no change
+# V162246: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162246']==1) | (X[,'V162246']==2)
+ind_2 = (X[,'V162246']==3)
+ind_3 = (X[,'V162246']==4) | (X[,'V162246']==5)
+X[ind_1,'V162246'] = 1
+X[ind_2,'V162246'] = 2
+X[ind_3,'V162246'] = 3
+# V162260: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162260']==1) | (X[,'V162260']==2)
+ind_2 = (X[,'V162260']==3)
+ind_3 = (X[,'V162260']==4) | (X[,'V162260']==5)
+X[ind_1,'V162260'] = 1
+X[ind_2,'V162260'] = 2
+X[ind_3,'V162260'] = 3
+# V162269: 1+2->1, 3->2, 4+5->3
+ind_1 = (X[,'V162269']==1) | (X[,'V162269']==2)
+ind_2 = (X[,'V162269']==3)
+ind_3 = (X[,'V162269']==4) | (X[,'V162269']==5)
+X[ind_1,'V162269'] = 1
+X[ind_2,'V162269'] = 2
+X[ind_3,'V162269'] = 3
+# V162271: 1->1, 2+3->2, 4->3
+ind_1 = (X[,'V162271']==1)
+ind_2 = (X[,'V162271']==2) | (X[,'V162271']==3)
+ind_3 = (X[,'V162271']==4)
+X[ind_1,'V162271'] = 1
+X[ind_2,'V162271'] = 2
+X[ind_3,'V162271'] = 3
+# V162290: 1->1, 2+3->2, 4->3
+ind_1 = (X[,'V162290']==1)
+ind_2 = (X[,'V162290']==2) | (X[,'V162290']==3)
+ind_3 = (X[,'V162290']==4)
+X[ind_1,'V162290'] = 1
+X[ind_2,'V162290'] = 2
+X[ind_3,'V162290'] = 3
+
+# format data into categorical variables
+level = apply(X, MARGIN=2, max)
+X = data.frame(X)
+for (col_index in 1:ncol(X)) {
+  X[,col_index] = factor(X[,col_index], levels = 1:level[col_index])
+}
+```
+
+## Extreme version
+
+```{r}
+set.seed(1)
+X_miss = X
+non_missing_col = c( 'V162134', 'V162145', 'V162176', 'V162180',  'V162193', 'V162208',
+                     'V162212',  'V162231', 'V162260', 'V162271', 'V162290')
+# variables subjected to MCAR
+MCAR_col = c('V162123', 'V162148', 'V162170', 'V162192','V162209', 'V162246')
+# variables subjected to MAR
+MAR_col = c('V162140', 'V162158', 'V162179','V162207','V162214', 'V162269')
+
+# Make data MCAR 30% on MCAR_col
+missing_prob = 0.3
+missing_col = which(var_name %in% MCAR_col)
+# Make data missing at random for each of the selected variables
+for (col in missing_col) {
+    missing_ind <- rbernoulli(dim(X)[1], p = missing_prob)
+    X_miss[missing_ind, col] <- NA
+}
+
+# Make data MAR 30% on MAR_col
+# remove V162290, V162134 from independent variables
+independent_col = c( 'V162145', 'V162176', 'V162180',  'V162193', 'V162208',
+                     'V162212',  'V162231', 'V162260', 'V162271')
+independent_df = sapply(X[, independent_col], as.numeric)-2
+# coefficients for logistic function
+beta_1 = c(0,0,0,-2,0,0,-2,-1,1) #4,7,8,9
+beta_2 = c(3,-2,-1.5,0,0,0,0,0,2) #1,2,3,9
+beta_3 = c(0,-4,0,4,-2,-1,0,0,0) #2,4,5,6
+beta_4 = c(0,0,0,1.5,-2,2,-2,0,0) #4,5,6,7
+beta_5 = c(0,0,0,0,-1.9,1.75,-0.5,1.5,0) #5,6,7,8
+beta_6 = c(-3,3,3,0,0,0,0,2,0) #1,2,3,8
+logistic_coef = rbind(beta_1, beta_2, beta_3, beta_4, beta_5, beta_6)
+constant = c(-2.5,-2,-2.25,-2,-1.75,-2.7)
+# make each of the six variables missing at random
+for (col in 1:length(MAR_col)) {
+  coef = logistic_coef[col,]
+  prob = apply(t(t(independent_df)*coef), MARGIN = 1, sum)
+  prob = exp(prob+constant[col])/(exp(prob+constant[col])+1)
+  print(sum(prob>0.9))
+  indicator = rbernoulli(dim(X)[1], p = prob)
+  X_miss[indicator, MAR_col[col]] <- NA
+}
+
+# Check percent missing
+apply(is.na(X_miss), MARGIN = 2, mean)
+```
+
+```{r}
+# Check distribution
+for (var_index in MAR_col) {
+  y_original = X[,var_index]
+  original_pmf = table(y_original)/length(y_original)
+  
+  # Observed distribution
+  missing_indicator = is.na(X_miss)[,var_index]
+  y_observed = y_original[!missing_indicator]
+  observed_pmf = table(y_observed)/length(y_observed)
+  
+  results = rbind(original_pmf,observed_pmf)
+  colnames(results)<- 1:dim(observed_pmf)
+  barplot(results, xlab = 'Category', beside = TRUE, 
+          legend = TRUE, args.legend = list(x = "bottomleft"),
+          main = paste('Histogram:', var_index))
+}
+```
+
+
+## Less extreme version
+
+```{r}
+set.seed(1)
+X_miss = X
+non_missing_col = c( 'V162134', 'V162145', 'V162176', 'V162180',  'V162193', 'V162208',
+                     'V162212',  'V162231', 'V162260', 'V162271', 'V162290')
+# variables subjected to MCAR
+MCAR_col = c('V162123', 'V162148', 'V162170', 'V162192','V162209', 'V162246')
+# variables subjected to MAR
+MAR_col = c('V162140', 'V162158', 'V162179','V162207','V162214', 'V162269')
+
+# Make data MCAR 30% on MCAR_col
+missing_prob = 0.3
+missing_col = which(var_name %in% MCAR_col)
+# Make data missing at random for each of the selected variables
+for (col in missing_col) {
+    missing_ind <- rbernoulli(dim(X)[1], p = missing_prob)
+    X_miss[missing_ind, col] <- NA
+}
+
+# Make data MAR 30% on MAR_col
+# remove V162290, V162134 from independent variables
+independent_col = c( 'V162145', 'V162176', 'V162180',  'V162193', 'V162208',
+                     'V162212',  'V162231', 'V162260', 'V162271')
+independent_df = sapply(X[, independent_col], as.numeric)-2
+# coefficients for logistic function
+beta_1 = c(0,0,0,-2,0,0,-2,-1,1)/2 #4,7,8,9
+beta_2 = c(2,-1.5,-1.25,0,0,0,0,0,1.75)/2 #1,2,3,9
+beta_3 = c(0,-2,0,2,-1.75,-0.8,0,0,0)/2 #2,4,5,6
+beta_4 = c(0,0,0,1.3,-1.75,1.75,-1.75,0,0)/2 #4,5,6,7
+beta_5 = c(0,0,0,0,-1.9,1.75,-0.5,1.5,0)/2 #5,6,7,8
+beta_6 = c(-1.75,1.75,1.75,0,0,0,0,1.3,0)/2 #1,2,3,8
+logistic_coef = rbind(beta_1, beta_2, beta_3, beta_4, beta_5, beta_6)
+constant = c(-1.4,-1.1,-1.2,-1.3,-1.1,-1.1)
+# make each of the six variables missing at random
+for (col in 1:length(MAR_col)) {
+  coef = logistic_coef[col,]
+  prob = apply(t(t(independent_df)*coef), MARGIN = 1, sum)
+  prob = exp(prob+constant[col])/(exp(prob+constant[col])+1)
+  print(sum(prob>0.9))
+  indicator = rbernoulli(dim(X)[1], p = prob)
+  X_miss[indicator, MAR_col[col]] <- NA
+}
+
+# Check percent missing
+apply(is.na(X_miss), MARGIN = 2, mean)
+```
+
+```{r}
+# Check distribution
+for (var_index in MAR_col) {
+  y_original = X[,var_index]
+  original_pmf = table(y_original)/length(y_original)
+  
+  # Observed distribution
+  missing_indicator = is.na(X_miss)[,var_index]
+  y_observed = y_original[!missing_indicator]
+  observed_pmf = table(y_observed)/length(y_observed)
+  
+  results = rbind(original_pmf,observed_pmf)
+  colnames(results)<- 1:dim(observed_pmf)
+  barplot(results, xlab = 'Category', beside = TRUE, 
+          legend = TRUE, args.legend = list(x = "bottomleft"),
+          main = paste('Histogram:', var_index))
+}
+```
+
+* * *
+
+
+
