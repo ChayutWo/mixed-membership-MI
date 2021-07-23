@@ -1,6 +1,6 @@
 
 ---
-title: "ANES dataset model with MMM with data MCAR 30% - fix label switching + merge levels of responses + cut out some variables + long simulation"
+title: "ANES dataset model with MMM with data MAR 30% - fix label switching + merge levels of responses + cut out some variables + long simulation"
 output:
   pdf_document: default
   html_document:
