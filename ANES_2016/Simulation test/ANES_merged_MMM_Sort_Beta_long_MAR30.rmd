@@ -238,23 +238,6 @@ missing_col = which(var_name %in% missing_col)
 apply(is.na(X_miss), MARGIN = 2, mean)
 ```
 
-```{r}
-# Make missing data MCAR 30%
-set.seed(1)
-missing_prob = 0.3
-missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
-                'V162179', 'V162192', 'V162207', 'V162209', 
-                'V162214', 'V162246', 'V162269')
-missing_col = which(var_name %in% missing_col)
-X_miss = X
-
-# Make data missing at random for each of the selected variables
-for (col in missing_col) {
-    missing_ind <- rbernoulli(dim(X)[1], p = missing_prob)
-    X_miss[missing_ind, col] <- NA
-}
-```
-
 ### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
