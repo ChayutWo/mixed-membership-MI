@@ -20,7 +20,8 @@ library(RColorBrewer)
 ```{r}
 # Import results
 #filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long.RData'
-filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
+#filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
+filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MAR30.RData'
 load(filepath)
 # Number of observarions and covariates
 N = dim(X)[1]
@@ -167,9 +168,9 @@ non_missing_col = c( 'V162134', 'V162145', 'V162176',
               'V162212',  'V162231', 'V162260',
              'V162271', 'V162290')
 
-#missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
-#                'V162179', 'V162192', 'V162207', 'V162209', 
-#                'V162214', 'V162246', 'V162269')
+missing_col = c('V162123', 'V162140', 'V162148', 'V162158', 'V162170', 
+                'V162179', 'V162192', 'V162207', 'V162209', 
+                'V162214', 'V162246', 'V162269')
 for(var in non_missing_col){
   # plotting section
   par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
@@ -191,9 +192,6 @@ for(var in non_missing_col){
   title(title_text, line = 2, outer = TRUE)
 }
 ```
-
-
-
 * * *
 
 

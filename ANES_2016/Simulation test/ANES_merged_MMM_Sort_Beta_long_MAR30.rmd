@@ -241,7 +241,7 @@ apply(is.na(X_miss), MARGIN = 2, mean)
 ### Mixed-Membership Model (MMM) MCMC
 
 ```{r}
-set.seed(2)
+set.seed(1)
 # MCMC variables
 Mon = 30000
 burnin = 15000

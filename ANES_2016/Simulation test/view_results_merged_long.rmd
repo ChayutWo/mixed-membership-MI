@@ -20,7 +20,8 @@ library(RColorBrewer)
 ```{r}
 # Import results
 #filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long.RData'
-filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
+#filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
+filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MAR30.RData'
 load(filepath)
 # Number of observarions and covariates
 N = dim(X)[1]
@@ -186,7 +187,7 @@ plot(1:dim(active_cluster), active_cluster, type = 'l', ylab = 'Number of active
 # V162180 Democrat favors more regulation
 # V162192 Democrat favors increasing min wage
 # V162179 I believe it is pretty split in real world with dem a bit more favor toward legalization
-var = 'V162269' # change this value
+var = 'V162246' # change this value
 
 # plotting section
 par(mfrow=c(4,2), oma = c(5.5,4.5,5,0.2) + 0.1, mar = c(0.75,0.25,1.25,1.25) + 0.5)
@@ -229,6 +230,46 @@ for (var in var_list) {
 }
 title_text = paste('group: ', group)
 title(title_text, line = 2, outer = TRUE)
+```
+
+```{r}
+# variables subjected to MCAR
+MCAR_col = c('V162123', 'V162148', 'V162170', 'V162192','V162209', 'V162246')
+# variables subjected to MAR
+MAR_col = c('V162140', 'V162158', 'V162179','V162207','V162214', 'V162269')
+missing_col = c(MCAR_col, MAR_col)
+missing_col = which(var_name %in% missing_col)
+
+# Check distribution
+for (var_index in missing_col) {
+  y_original = X[,var_index]
+  original_pmf = table(y_original)/length(y_original)
+  
+  # Observed distribution
+  missing_indicator = is.na(X_miss)[,var_index]
+  y_observed = y_original[!missing_indicator]
+  observed_pmf = table(y_observed)/length(y_observed)
+  
+  # calculate imputed pmf
+  imputed_pmf = c()
+  for (t in 1:(dim(X_SAMPLE)[3])) {
+    # for each imputed dataset, calculate joint pmf
+    X_SAMPLE_df = data.frame(X_SAMPLE[,,t])
+    y_imputed = X_SAMPLE_df[, var_index]
+    imputed_pmf_temp = table(y_imputed)/length(y_imputed)
+    # imputed_pmf has dimension #samples x #pmfs
+    imputed_pmf = rbind(imputed_pmf, imputed_pmf_temp)
+  }
+  # calculate mean and 95% credible interval
+  imputed_pmf_mean = apply(imputed_pmf, MARGIN = 2, FUN = mean)
+  
+  results = rbind(original_pmf,observed_pmf, imputed_pmf_mean)
+  colnames(results)<- 1:dim(observed_pmf)
+  barplot(results, xlab = 'Category', beside = TRUE, 
+          legend = TRUE, args.legend = list(x = "bottomleft",bty = "n"),
+          main = paste('Histogram:', var_name[var_index]))
+  
+}
 ```
 
 * * *
