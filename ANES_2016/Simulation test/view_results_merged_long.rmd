@@ -19,9 +19,9 @@ library(RColorBrewer)
 * * *
 ```{r}
 # Import results
-#filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long.RData'
+filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long.RData'
 #filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MCAR30.RData'
-filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MAR30.RData'
+#filepath = './samples_Sort_Beta/post_samples_mergedlv_sort_beta_long_MAR30.RData'
 load(filepath)
 # Number of observarions and covariates
 N = dim(X)[1]

@@ -1,0 +1,71 @@
+
+---
+title: "Test different functions"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+# Function to import data
+source("../../utils/load_data.R")
+source("../../utils/make_MCAR.R")
+source("../../utils/make_MAR.R")
+source("../../utils/MMM_imputation.R")
+```
+
+```{r}
+# Import data
+filepath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+X = load_data(filepath)
+dim(X)
+```
+
+```{r}
+# Make MCAR data
+# variables subjected to MCAR
+MCAR_col = c('V162123', 'V162148', 'V162170', 'V162192','V162209', 'V162246')
+# variables subjected to MAR
+MAR_col = c('V162140', 'V162158', 'V162179','V162207','V162214', 'V162269')
+X_miss = make_MCAR(X, missing_col = c(MCAR_col, MAR_col), missing_prob = 0.3)
+apply(is.na(X_miss), MARGIN = 2, mean)
+```
+
+```{r}
+# Make MAR data
+X_miss = make_MAR(X, MCAR_col, MAR_col)
+apply(is.na(X_miss), MARGIN = 2, mean)
+```
+
+```{r}
+# Perform MMM modelling/imputation
+MMM_imputation(X_miss, K = 30, Mon = 20, burnin = 10, 
+               thin = 5, seed = 1, savename = "../simulation_results/test.RData")
+```
+
+```{r}
+# to be done
+# check imputation code
+# may be doing the following in some other files
+# posterior diagonostic function
+# disagreement file + plot file
+# cohesion file + plot file outside
+# compare groups missing vs nonmissing with plot and datatable
+```
+
+* * *
+
+
+
