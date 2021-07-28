@@ -22,8 +22,8 @@ MMM_imputation <- function(X_miss, K = 30, Mon = 30000,
   #############################################################################
   level = apply(X_miss, MARGIN=2, max, na.rm = TRUE)
   print(level)
-  N = dim(X_miss)[1]
-  p = dim(X_miss)[2]
+  N = dim(X_miss)[1] # Number of observations
+  p = dim(X_miss)[2] # Number of variables
   # hyperprior parameters
   # gamma ~ Gamma(a,b)
   a = 0.25
@@ -53,7 +53,7 @@ MMM_imputation <- function(X_miss, K = 30, Mon = 30000,
   # initial imputation for x with observed marginal probability
   for (col in 1:p) {
     missing_ind <- R[,col]
-    if(sum(missing_ind>0)){
+    if (sum(missing_ind) > 0) {
       x_temp[missing_ind, col] <- sample(1:level[col], size = sum(missing_ind),
                                          table(x_temp[R[,col]!=1,col]), replace = TRUE)
     }
