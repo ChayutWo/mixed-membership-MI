@@ -54,6 +54,7 @@ MMM_imputation <- function(X_miss, K = 30, Mon = 30000,
   for (col in 1:p) {
     missing_ind <- R[,col]
     if (sum(missing_ind) > 0) {
+      print(paste('initial imputation for var', col))
       x_temp[missing_ind, col] <- sample(1:level[col], size = sum(missing_ind),
                                          table(x_temp[R[,col]!=1,col]), replace = TRUE)
     }

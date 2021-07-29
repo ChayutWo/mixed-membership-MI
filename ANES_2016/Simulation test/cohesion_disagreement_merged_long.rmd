@@ -228,7 +228,7 @@ plot(x = 1:num_big_cluster, y = apply(cohesion_ratio, MARGIN = 2, mean),
 
 ```{r}
 # disagreement_df is a matrix of size #var x #combination of groups
-# disagreement is posterior mean of argmax{Phi_k^(j)} == argmax{Phi_k'^(j)} for k and k' clusters
+# disagreement is posterior mean of argmax{Phi_k^(j)} != argmax{Phi_k'^(j)} for k and k' clusters
 # apply cutoff to disagreement and count the number of questions they disagree on
 group_list = 1:num_big_cluster # clusters to be compared pairwise
 combinations = combn(group_list, 2)

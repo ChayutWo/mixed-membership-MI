@@ -1,0 +1,48 @@
+
+---
+title: "Test different functions"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+# source our utility functions
+source("../../utils/load_data.R")
+source("../../utils/MMM_imputation.R")
+```
+
+```{r}
+# Import data
+filepath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+X = load_data(filepath)
+X_miss = X # no missing values
+dim(X)
+```
+
+```{r}
+# Perform MMM modelling/imputation
+seed_number = 1
+savepath = paste('../simulation_results/fullyobserved_', seed_number, '.RData', 
+                 sep = '')
+MMM_imputation(X_miss, K = 30, Mon = 30000, burnin = 15000, 
+               thin = 5, seed = seed_number, 
+               savename = savepath)
+```
+
+* * *
+
+
+

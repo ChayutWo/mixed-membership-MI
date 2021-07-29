@@ -57,11 +57,9 @@ MMM_imputation(X_miss, K = 30, Mon = 20, burnin = 10,
 
 ```{r}
 # to be done
-# check imputation code
 # may be doing the following in some other files
-# posterior diagonostic function
-# disagreement file + plot file
-# cohesion file + plot file outside
+# run for nmax = 2
+# view results file
 # compare groups missing vs nonmissing with plot and datatable
 ```
 

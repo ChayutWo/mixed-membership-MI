@@ -1,0 +1,65 @@
+
+---
+title: "Test different functions"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+# Function to import data
+source('../../utils/posterior_diag.R')
+source("../../utils/load_data.R")
+source('../../utils/metadata.R')
+source('../../utils/calculate_disagreement_cohesion.R')
+source('../../utils/view_results.R')
+```
+
+```{r}
+samplespath = '../simulation_results/sample_result_MAR30.RData'
+datapath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+```
+
+```{r}
+posterior_diag(datapath = datapath, samplespath = samplespath, max_nway = 2)
+```
+
+```{r, fig.height=4, fig.width=5}
+cohesion = calculate_cohesion(samplespath = samplespath)
+```
+
+```{r, fig.height=4, fig.width=5}
+cohesion_ratio = calculate_cohesion_ratio(samplespath = samplespath)
+```
+
+```{r, fig.height=4, fig.width=5}
+disagreement = calculate_disagreement(samplespath = samplespath)
+```
+
+```{r, fig.width=4, fig.height=4}
+view_PHI_by_var(samplespath)
+```
+
+```{r, fig.width=4, fig.height=4}
+view_PHI_by_group(samplespath)
+```
+
+```{r}
+compare_imputed_pmf(datapath, samplespath)
+```
+* * *
+
+
+
