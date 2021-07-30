@@ -1,6 +1,6 @@
 
 ---
-title: "MMM model for fully observed dataset"
+title: "MMM model for 30% MAR dataset"
 output:
   pdf_document: default
   html_document:
@@ -22,20 +22,31 @@ library(RColorBrewer)
 # source our utility functions
 source("../../utils/load_data.R")
 source("../../utils/MMM_imputation.R")
+source("../../utils/make_MAR.R")
 ```
 
 ```{r}
 # Import data
 filepath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
 X = load_data(filepath)
-X_miss = X # no missing values
+seed_number = 21
 dim(X)
 ```
 
 ```{r}
+# Make data missing 30% MAR
+set.seed(seed_number)
+# variables subjected to MCAR
+MCAR_col = c('V162123', 'V162148', 'V162170', 'V162192','V162209', 'V162246')
+# variables subjected to MAR
+MAR_col = c('V162140', 'V162158', 'V162179','V162207','V162214', 'V162269')
+X_miss = make_MAR(X, MCAR_col, MAR_col)
+apply(is.na(X_miss), MARGIN = 2, mean)
+```
+
+```{r}
 # Perform MMM modelling/imputation
-seed_number = 11
-savepath = paste('../simulation_results/fully_observed_', seed_number, '.RData', 
+savepath = paste('../simulation_results/MAR30_', seed_number, '.RData', 
                  sep = '')
 MMM_imputation(X_miss, K = 30, Mon = 30000, burnin = 15000, 
                thin = 5, seed = seed_number, 
