@@ -29,7 +29,7 @@ source("../../utils/make_MAR.R")
 # Import data
 filepath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
 X = load_data(filepath)
-seed_number = 21
+seed_number = 25
 dim(X)
 ```
 

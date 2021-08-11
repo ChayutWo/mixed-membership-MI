@@ -1,0 +1,75 @@
+
+---
+title: "Analysis of posterior samples - compare two groups across different model outputs"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+source("../../utils/load_data.R")
+source('../../utils/metadata.R')
+source('../../utils/compare_two_groups.R')
+```
+
+## MAR section
+
+```{r, fig.width=3, fig.height=6}
+# dem of 2nd seed pair
+filepath_nonmissing = '../simulation_results/fully_observed_12.RData'
+filepath_missing = '../simulation_results/MAR30_22.RData'
+group_nonmissing = 2
+group_missing = 1
+group_desc = 'DEM'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+```{r, fig.width=3, fig.height=6}
+# rep of 2nd seed pair
+filepath_nonmissing = '../simulation_results/fully_observed_12.RData'
+filepath_missing = '../simulation_results/MAR30_22.RData'
+group_nonmissing = 3
+group_missing = 4
+group_desc = 'REP'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+
+## MCAR section
+
+```{r, fig.width=3, fig.height=6}
+# democrat of 2nd seed pair
+filepath_nonmissing = '../simulation_results/fully_observed_12.RData'
+filepath_missing = '../simulation_results/MCAR30_17.RData'
+group_nonmissing = 2
+group_missing = 3
+group_desc = 'DEM'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+```{r, fig.width=3, fig.height=6}
+# rep of 2nd seed pair
+filepath_nonmissing = '../simulation_results/fully_observed_12.RData'
+filepath_missing = '../simulation_results/MCAR30_17.RData'
+group_nonmissing = 3
+group_missing = 7
+group_desc = 'REP'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+* * *
+
+
+

@@ -1,0 +1,77 @@
+
+---
+title: "Analysis of posterior samples"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+# Function to import data
+source('../../utils/posterior_diag.R')
+source("../../utils/load_data.R")
+source('../../utils/metadata.R')
+source('../../utils/calculate_disagreement_cohesion.R')
+source('../../utils/view_results.R')
+```
+
+```{r}
+datapath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
+# Change this samplespath file
+samplespath = '../simulation_results/MAR30_23.RData'
+n_cluster = 7 # Number of big clusters to be considered
+```
+
+```{r}
+# Assess convergence, mixing properties, confidence interval (not from combining rule)
+posterior_diag(datapath = datapath, samplespath = samplespath, max_nway = 1)
+```
+
+```{r, fig.height=4, fig.width=5}
+# Cohesion score of different groups
+cohesion = calculate_cohesion(samplespath = samplespath, num_big_cluster = n_cluster)
+```
+
+```{r, fig.height=4, fig.width=5}
+# Cohesion ratio score of different groups
+cohesion_ratio = calculate_cohesion_ratio(samplespath = samplespath, 
+                                          num_big_cluster = n_cluster)
+```
+
+```{r, fig.height=4, fig.width=5}
+# Disagreement between groups
+disagreement = calculate_disagreement(samplespath = samplespath, 
+                                      num_big_cluster = n_cluster,
+                                      cutoff = 0.75)
+```
+
+```{r, fig.width=4, fig.height=4}
+# View pmf of different questions for top 7 clusters group by variables
+view_PHI_by_var(samplespath)
+```
+
+```{r, fig.width=4, fig.height=4}
+# View pmf of 8 different questions for top 7 clusters group by cluster index
+view_PHI_by_group(samplespath, num_big_cluster=n_cluster)
+```
+
+```{r}
+# If data is missing, this will show imputation performance in a marginal sense
+compare_imputed_pmf(datapath, samplespath)
+```
+* * *
+
+
+

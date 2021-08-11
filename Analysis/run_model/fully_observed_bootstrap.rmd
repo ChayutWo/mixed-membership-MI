@@ -1,6 +1,6 @@
 
 ---
-title: "MMM model for 30% MCAR dataset"
+title: "MMM model for fully observed dataset with bootstrapping"
 output:
   pdf_document: default
   html_document:
@@ -14,7 +14,6 @@ knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
 library(ggplot2)
 require(MCMCpack)
 library(RColorBrewer)
-library(purrr)
 ```
 
 * * *
@@ -23,37 +22,32 @@ library(purrr)
 # source our utility functions
 source("../../utils/load_data.R")
 source("../../utils/MMM_imputation.R")
-source("../../utils/make_MCAR.R")
 ```
 
 ```{r}
+seed_number = 52
+set.seed(seed_number)
 # Import data
 filepath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
 X = load_data(filepath)
-seed_number = 20
-dim(X)
-```
-
-```{r}
-# Make data missing 30% MCAR
-set.seed(seed_number)
-# variables subjected to MCAR
-MCAR_col = c('V162123', 'V162148', 'V162170', 'V162192','V162209', 'V162246')
-# variables subjected to MAR
-MAR_col = c('V162140', 'V162158', 'V162179','V162207','V162214', 'V162269')
-X_miss = make_MCAR(X, missing_col = c(MCAR_col, MAR_col), missing_prob = 0.3)
-apply(is.na(X_miss), MARGIN = 2, mean)
+# Create a bootstrap dataset to represent X
+row_ind = sample(nrow(X), size = nrow(X), replace = TRUE)
+X_miss = X[row_ind,] # no missing values
+row.names(X_miss) <- NULL
+dim(X_miss)
+length(table(row_ind)) # number of unique rows from original data matrix
+min(row_ind)
+max(row_ind)
 ```
 
 ```{r}
 # Perform MMM modelling/imputation
-savepath = paste('../simulation_results/MCAR30_', seed_number, '.RData', 
+savepath = paste('../simulation_results/fully_observed_bootstrap_', seed_number, '.RData', 
                  sep = '')
 MMM_imputation(X_miss, K = 30, Mon = 30000, burnin = 15000, 
                thin = 5, seed = seed_number, 
                savename = savepath)
 ```
-
 * * *
 
 

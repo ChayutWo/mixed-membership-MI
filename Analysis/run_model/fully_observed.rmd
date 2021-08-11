@@ -34,7 +34,7 @@ dim(X)
 
 ```{r}
 # Perform MMM modelling/imputation
-seed_number = 11
+seed_number = 15
 savepath = paste('../simulation_results/fully_observed_', seed_number, '.RData', 
                  sep = '')
 MMM_imputation(X_miss, K = 30, Mon = 30000, burnin = 15000, 
