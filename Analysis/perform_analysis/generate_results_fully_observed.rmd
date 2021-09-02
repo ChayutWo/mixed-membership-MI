@@ -1,0 +1,87 @@
+
+---
+title: "Analysis of posterior samples - compare two groups across different model outputs"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(xtable)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+source('../../utils/posterior_diag.R')
+source("../../utils/load_data.R")
+source('../../utils/metadata.R')
+source('../../utils/calculate_disagreement_cohesion.R')
+source('../../utils/view_results.R')
+source('../../utils/compare_two_groups.R')
+```
+
+
+## fully observed section
+```{r, fig.width=3, fig.height=6}
+# dem of 3rd seed pair
+filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_13.RData'
+group_nonmissing = 1
+group_missing = 2
+group_desc = 'DEM vs REP'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+
+```{r}
+# Cohesion ratio score of different groups
+cohesion_ratio = calculate_cohesion_ratio(samplespath = filepath_nonmissing, 
+                                          num_big_cluster = 3)
+```
+
+```{r}
+disagreement = calculate_disagreement(samplespath = filepath_nonmissing, 
+                                      num_big_cluster = 3,
+                                      cutoff = 0.75)
+```
+
+
+```{r}
+cohesion_disagreement_df = data.frame(cbind(cohesion_ratio[,1], cohesion_ratio[,2], disagreement[,1]))
+colnames(cohesion_disagreement_df) <- c('cohesion lib', 'cohesion con', 'DR')
+xtable(cohesion_disagreement_df, digits = 2)
+```
+
+
+```{r}
+xtable(cohesion_disagreement_df[c(MAR_col, MCAR_col), ], digits = 2)
+```
+
+
+```{r}
+load(filepath_nonmissing)
+j_brew_colors <- brewer.pal(n = 12, name = "Paired")
+beta_df = BETA
+colnames(beta_df) <- 1:K
+setEPS()
+postscript("../figures/beta_fully_observed.eps", width=8, height=5, horizontal = FALSE, onefile=FALSE)
+par(oma = c(0.75,0.25,1.25,0.25) + 0.1, mar = c(3.5,4,0.2,0.2) + 0.5)
+par(cex.axis = 0.75)
+matplot(1:dim(beta_df)[1], beta_df, 
+        type = 'l', ylab = expression(paste("Cluster proportion (", beta['k'],')')), xlab = 'MCMC samples', 
+        main = NA, col = j_brew_colors)
+dev.off()
+```
+
+* * *
+
+
+

@@ -57,8 +57,8 @@ par(mfrow=c(length(var_list),3), oma = c(1.5,4.5,1,0.2) + 0.1, mar = c(0.75,0.25
 for (var in var_list) {
   idx = meta[[var]][4] # index for that variable
   
-  # plot PHI for variable named var and for the selected group: group 4+5 of seed 14
-  phi = t(PHI_1[[strtoi(idx)]][group_a,,]) # matrix of size samples x # levels
+  # plot PHI for variable named var and for the selected group: group 1 of seed 13
+  phi = t(PHI_2[[strtoi(idx)]][group_base,,]) # matrix of size samples x # levels
   num_level= strtoi(meta[[var]][2])
   matplot(1:dim(phi)[1], phi, 
           type = 'l', ylab = 'phi', xlab = '',
@@ -66,10 +66,8 @@ for (var in var_list) {
           col=topo.colors(num_level), lwd = 1.5, cex.main = 0.7, cex.axis = 0.7)
   legend('right', legend = 1:num_level, col=topo.colors(num_level), lwd = 1.5)
   
-  # Add text for variable name
-  mtext(text = var, side = 2, line = 1, cex = 0.5, las = 2, adj = 1.5, font = 2)
-  
-  phi = t(PHI_1[[strtoi(idx)]][group_b,,]) # matrix of size samples x # levels
+  # plot PHI for variable named var and for the selected group: group 4+5 of seed 14
+  phi = t(PHI_1[[strtoi(idx)]][group_a,,]) # matrix of size samples x # levels
   num_level= strtoi(meta[[var]][2])
   matplot(1:dim(phi)[1], phi, 
           type = 'l', ylab = 'phi', xlab = '',
@@ -79,8 +77,10 @@ for (var in var_list) {
   axis(side = 2, tick = TRUE, labels = FALSE)
   legend('right', legend = 1:num_level, col=topo.colors(num_level), lwd = 1.5)
   
-  # plot PHI for variable named var and for the selected group: group 1 of seed 13
-  phi = t(PHI_2[[strtoi(idx)]][group_base,,]) # matrix of size samples x # levels
+  # Add text for variable name
+  mtext(text = var, side = 2, line = 1, cex = 0.5, las = 2, adj = 1.5, font = 2)
+  
+  phi = t(PHI_1[[strtoi(idx)]][group_b,,]) # matrix of size samples x # levels
   num_level= strtoi(meta[[var]][2])
   matplot(1:dim(phi)[1], phi, 
           type = 'l', ylab = 'phi', xlab = '',
@@ -107,15 +107,15 @@ for (var in var_list) {
   # Get posterior mean of the pmf of that variable: group 1 of seed 13
   phi = t(PHI_2[[strtoi(idx)]][group_base,,]) # matrix of size samples x # levels
   pmf_base =apply(phi, MARGIN=2, mean)
-  summary = rbind(summary, c(pmf_a, pmf_b, pmf_base))
+  summary = rbind(summary, c(pmf_base, pmf_a, pmf_b))
 }
 colnames(summary) <- c('level = 1', 'level = 2', 'level = 3', 
                        'level = 1', 'level = 2', 'level = 3',
                        'level = 1', 'level = 2', 'level = 3')
 rownames(summary) <- var_list
-caption = paste(" group a: ", group_a, " size = ", cluster_size_a, 
-                ", group b: ", group_b, " size = ", cluster_size_b, 
-                ", group base: ", group_base, " size = ", cluster_size_base, sep = '')
+caption = paste("group base: ", group_base, " size = ", cluster_size_base,
+                ", group a: ", group_a, " size = ", cluster_size_a, 
+                ", group b: ", group_b, " size = ", cluster_size_b, sep = '')
 xtable(summary, digits = 2, caption = caption)
 ```
 
@@ -137,12 +137,9 @@ par(mfrow=c(length(var_list),2), oma = c(1.5,4.5,1,0.2) + 0.1, mar = c(0.75,0.25
 for (var in var_list) {
   idx = meta[[var]][4] # index for that variable
   num_level= strtoi(meta[[var]][2])
-  # plot PHI for variable named var and for the selected group: group 4+5 of seed 14
-  phi_a = t(PHI_1[[strtoi(idx)]][group_a,,]) # matrix of size samples x # levels
-  phi_a = phi_a*w_a
-  phi_b = t(PHI_1[[strtoi(idx)]][group_b,,]) # matrix of size samples x # levels
-  phi_b = phi_b*w_b
-  phi = (phi_a + phi_b)/w_total
+  # plot PHI for variable named var and for the selected group: group 1 of seed 13
+  phi = t(PHI_2[[strtoi(idx)]][group_base,,]) # matrix of size samples x # levels
+  num_level= strtoi(meta[[var]][2])
   matplot(1:dim(phi)[1], phi, 
           type = 'l', ylab = 'phi', xlab = '',
           main = paste(var,': ', meta[[var]][1]), ylim = c(0,1),
@@ -152,9 +149,12 @@ for (var in var_list) {
   # Add text for variable name
   mtext(text = var, side = 2, line = 1, cex = 0.5, las = 2, adj = 1.5, font = 2)
   
-  # plot PHI for variable named var and for the selected group: group 1 of seed 13
-  phi = t(PHI_2[[strtoi(idx)]][group_base,,]) # matrix of size samples x # levels
-  num_level= strtoi(meta[[var]][2])
+  # plot PHI for variable named var and for the selected group: group 4+5 of seed 14
+  phi_a = t(PHI_1[[strtoi(idx)]][group_a,,]) # matrix of size samples x # levels
+  phi_a = phi_a*w_a
+  phi_b = t(PHI_1[[strtoi(idx)]][group_b,,]) # matrix of size samples x # levels
+  phi_b = phi_b*w_b
+  phi = (phi_a + phi_b)/w_total
   matplot(1:dim(phi)[1], phi, 
           type = 'l', ylab = 'phi', xlab = '',
           main = paste(var,': ', meta[[var]][1]), ylim = c(0,1),
@@ -180,13 +180,13 @@ for (var in var_list) {
   # Get posterior mean of the pmf of that variable: group 1 of seed 13
   phi = t(PHI_2[[strtoi(idx)]][group_base,,]) # matrix of size samples x # levels
   pmf_base =apply(phi, MARGIN=2, mean)
-  summary = rbind(summary, c(pmf_merge, pmf_base))
+  summary = rbind(summary, c(pmf_base, pmf_merge))
 }
 colnames(summary) <- c('level = 1', 'level = 2', 'level = 3', 
                        'level = 1', 'level = 2', 'level = 3')
 rownames(summary) <- var_list
-caption = paste(" group a+b, size = ", mean(w_total), 
-                ", group base: ", group_base, " size = ", cluster_size_base, sep = '')
+caption = paste("group base: ", group_base, " size = ", cluster_size_base,
+                ", group a+b, size = ", mean(w_total), sep = '')
 xtable(summary, digits = 2, caption = caption)
 ```
 

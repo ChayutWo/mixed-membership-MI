@@ -13,7 +13,6 @@ knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
 knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
 library(ggplot2)
 require(MCMCpack)
-library(xtable)
 library(RColorBrewer)
 ```
 
@@ -25,47 +24,34 @@ source('../../utils/metadata.R')
 source('../../utils/compare_two_groups.R')
 ```
 
+## Bootstrap-1
 
-## fully observed section
 ```{r, fig.width=3, fig.height=6}
-# dem of 3rd seed pair
+# dem
 filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
-filepath_missing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_51.RData'
 group_nonmissing = 1
 group_missing = 2
-group_desc = 'DEM vs REP'
-compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
-```
-
-## MAR section
-
-```{r, fig.width=3, fig.height=6}
-# dem of 3rd seed pair
-filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
-filepath_missing = '../simulation_results/MAR30_22.RData'
-group_nonmissing = 1
-group_missing = 1
 group_desc = 'DEM'
 compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
 ```
 
 ```{r, fig.width=3, fig.height=6}
-# rep of 3rd seed pair
+# rep 
 filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
-filepath_missing = '../simulation_results/MAR30_22.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_51.RData'
 group_nonmissing = 2
-group_missing = 4
+group_missing = 3
 group_desc = 'REP'
 compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
 ```
 
-
-## MCAR section
+## Bootstrap-2
 
 ```{r, fig.width=3, fig.height=6}
-# democrat of 3rd seed pair
+# dem
 filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
-filepath_missing = '../simulation_results/MCAR30_18.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_52.RData'
 group_nonmissing = 1
 group_missing = 1
 group_desc = 'DEM'
@@ -73,9 +59,53 @@ compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, grou
 ```
 
 ```{r, fig.width=3, fig.height=6}
-# rep of 3rd seed pair
+# rep 
 filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
-filepath_missing = '../simulation_results/MCAR30_18.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_52.RData'
+group_nonmissing = 2
+group_missing = 3
+group_desc = 'REP'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+## Bootstrap-3
+
+```{r, fig.width=3, fig.height=6}
+# dem
+filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_53.RData'
+group_nonmissing = 1
+group_missing = 1
+group_desc = 'DEM'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+```{r, fig.width=3, fig.height=6}
+# rep 
+filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_53.RData'
+group_nonmissing = 2
+group_missing = 3
+group_desc = 'REP'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+## Bootstrap-4
+
+```{r, fig.width=3, fig.height=6}
+# dem
+filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_54.RData'
+group_nonmissing = 1
+group_missing = 1
+group_desc = 'DEM'
+compare_two_groups(filepath_nonmissing, group_nonmissing, filepath_missing, group_missing, group_desc)
+```
+
+```{r, fig.width=3, fig.height=6}
+# rep 
+filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_bootstrap_54.RData'
 group_nonmissing = 2
 group_missing = 5
 group_desc = 'REP'

@@ -22,7 +22,7 @@ compare_two_groups <- function(filepath_nonmissing, group_nonmissing, filepath_m
   cluster_size_missing = mean(BETA[, group_missing])
   # selected variables to be plotted
   var_list = c(MAR_col, MCAR_col)
-  
+  #var_list = var_name
   # Part II: Comparison of plots of pmf
   par(mfrow=c(length(var_list),2), oma = c(1.5,4.5,1,0.2) + 0.1, mar = c(0.75,0.25,1.25,0.25) + 0.5)
   for (var in var_list) {

@@ -25,7 +25,7 @@ source("../../utils/MMM_imputation.R")
 ```
 
 ```{r}
-seed_number = 52
+seed_number = 54
 set.seed(seed_number)
 # Import data
 filepath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'

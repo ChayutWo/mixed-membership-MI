@@ -14,8 +14,6 @@ knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
 library(ggplot2)
 require(MCMCpack)
 library(RColorBrewer)
-library(gplots)
-library(xtable)
 ```
 
 * * *
@@ -30,10 +28,21 @@ source('../../utils/view_results.R')
 ```
 
 ```{r}
+X = load_data(datapath)
+```
+
+
+```{r}
 datapath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
 # Change this samplespath file
-samplespath = '../simulation_results/MAR30_22.RData'
+samplespath = '../simulation_results/fully_observed_11.RData'
+load(samplespath)
 n_cluster = 7 # Number of big clusters to be considered
+```
+
+```{r}
+Z_1 = t(Z[3,,])
+table(Z_1)/sum(table(Z_1))
 ```
 
 ```{r}
@@ -50,10 +59,6 @@ cohesion = calculate_cohesion(samplespath = samplespath, num_big_cluster = n_clu
 # Cohesion ratio score of different groups
 cohesion_ratio = calculate_cohesion_ratio(samplespath = samplespath, 
                                           num_big_cluster = n_cluster)
-```
-
-```{r}
-xtable(cohesion_ratio, digits = 2)
 ```
 
 ```{r, fig.height=4, fig.width=5}
@@ -77,6 +82,11 @@ view_PHI_by_group(samplespath, num_big_cluster=n_cluster)
 # If data is missing, this will show imputation performance in a marginal sense
 compare_imputed_pmf(datapath, samplespath)
 ```
+
+```{r}
+X = read.csv(datapath, sep= '|')
+```
+
 * * *
 
 
