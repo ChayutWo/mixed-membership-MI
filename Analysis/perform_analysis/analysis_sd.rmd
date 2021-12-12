@@ -1,0 +1,76 @@
+
+---
+title: "Analysis of posterior samples (SD)"
+output:
+  pdf_document: default
+  html_document:
+    highlight: pygments
+    theme: spacelab
+---
+
+```{r setup, echo =FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'h', fig.align = 'center')
+knitr::opts_chunk$set(fig.cap = "",  fig.path = "Plot")
+library(ggplot2)
+require(MCMCpack)
+library(RColorBrewer)
+```
+
+* * *
+
+```{r}
+# Function to import data
+source('../../utils/posterior_diag.R')
+source("../../utils/load_data.R")
+source('../../utils/metadata.R')
+source('../../utils/calculate_disagreement_cohesion.R')
+source('../../utils/view_results.R')
+```
+
+```{r}
+filepath_nonmissing = '../simulation_results/fully_observed_13.RData'
+filepath_missing = '../simulation_results/fully_observed_13.RData'
+group_nonmissing = 1
+group_missing = 2
+```
+
+```{r}
+
+load(filepath_nonmissing)
+PHI_nonmissing = PHI
+cluster_size_nonmissing = mean(BETA[, group_nonmissing])
+# Load results with missing data
+load(filepath_missing)
+PHI_missing = PHI
+cluster_size_missing = mean(BETA[, group_missing])
+# selected variables to be plotted
+var_list = var_name
+# Part III: Summary table of pmfs
+summary = c()
+for (var in var_list) {
+  idx = meta[[var]][4] # index for that variable
+  
+  # Get posterior mean of the pmf of that variable: without missing data
+  phi = t(PHI_nonmissing[[strtoi(idx)]][group_nonmissing,,]) # matrix of size samples x # levels
+  sd_nonmissing =apply(phi, MARGIN=2, sd)
+  
+  
+  # Get posterior mean of the pmf of that variable: with missing data
+  phi = t(PHI_missing[[strtoi(idx)]][group_missing,,]) # matrix of size samples x # levels
+  sd_missing =apply(phi, MARGIN=2, sd)
+  summary = rbind(summary, c(sd_nonmissing, sd_missing))
+}
+colnames(summary) <- c('level = 1', 'level = 2', 'level = 3', 
+                       'level = 1', 'level = 2', 'level = 3')
+rownames(summary) <- var_list
+caption = paste(" nonmissing: ", group_nonmissing, " size = ", cluster_size_nonmissing, 
+                ", missing: ", group_missing, " size = ", cluster_size_missing, sep = '')
+xtable(summary, digits = 2, caption = caption)
+
+```
+
+
+* * *
+
+
+

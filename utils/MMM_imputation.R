@@ -223,5 +223,5 @@ MMM_imputation <- function(X_miss, K = 30, Mon = 30000,
     print(paste('finish runing MCMC trial:',trial))
   }
   print(paste('saving output to',savename))
-  save(BETA, PHI, X_miss, X_SAMPLE, Z, file = savename)
+  save(BETA, PHI, X_miss, X_SAMPLE, PI, Z, file = savename)
 }

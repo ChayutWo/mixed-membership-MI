@@ -25,67 +25,43 @@ source("../../utils/load_data.R")
 source('../../utils/metadata.R')
 source('../../utils/calculate_disagreement_cohesion.R')
 source('../../utils/view_results.R')
+source('../../utils/compare_two_groups.R')
 ```
-
-```{r}
-X = load_data(datapath)
-```
-
 
 ```{r}
 datapath = '../../ANES_2016/anes_timeseries_2016/anes_timeseries_2016_rawdata.txt'
 # Change this samplespath file
-samplespath = '../simulation_results/fully_observed_11.RData'
+samplespath = '../simulation_results/fully_observed_withPI_13.RData'
 load(samplespath)
 n_cluster = 7 # Number of big clusters to be considered
 ```
 
 ```{r}
-Z_1 = t(Z[3,,])
-table(Z_1)/sum(table(Z_1))
+# posterior expectation of PI
+expected_PI = matrix(rep(0,N*K),N,K)
+for (i in 1:dim(PI)[1]) {
+  PI_person = t(PI[i,,]) # 3000x30
+  expected_PI[i,] = apply(PI_person, MARGIN = 2,mean)
+}
 ```
 
 ```{r}
-# Assess convergence, mixing properties, confidence interval (not from combining rule)
-posterior_diag(datapath = datapath, samplespath = samplespath, max_nway = 1)
-```
-
-```{r, fig.height=4, fig.width=5}
-# Cohesion score of different groups
-cohesion = calculate_cohesion(samplespath = samplespath, num_big_cluster = n_cluster)
-```
-
-```{r, fig.height=4, fig.width=5}
-# Cohesion ratio score of different groups
-cohesion_ratio = calculate_cohesion_ratio(samplespath = samplespath, 
-                                          num_big_cluster = n_cluster)
-```
-
-```{r, fig.height=4, fig.width=5}
-# Disagreement between groups
-disagreement = calculate_disagreement(samplespath = samplespath, 
-                                      num_big_cluster = n_cluster,
-                                      cutoff = 0.75)
-```
-
-```{r, fig.width=4, fig.height=4}
-# View pmf of different questions for top 7 clusters group by variables
-view_PHI_by_var(samplespath)
-```
-
-```{r, fig.width=4, fig.height=4}
-# View pmf of 8 different questions for top 7 clusters group by cluster index
-view_PHI_by_group(samplespath, num_big_cluster=n_cluster)
+# number of associated profile
+n_dominant_profile = apply(expected_PI > 0.1,MARGIN=1,sum)
+barplot(table(n_dominant_profile)/sum(table(n_dominant_profile)), main = 'number of clusters with proportion > 10%')
+table(n_dominant_profile)/sum(table(n_dominant_profile))
 ```
 
 ```{r}
-# If data is missing, this will show imputation performance in a marginal sense
-compare_imputed_pmf(datapath, samplespath)
+# number of members
+index_max = rep(0, N)
+for (i in 1:N) {
+  index_max[i] = which(expected_PI[i, ] == max(expected_PI[i, ]))
+}
+barplot(table(index_max)/sum(table(index_max)), main = 'number of main members')
+table(index_max)/sum(table(index_max))
 ```
 
-```{r}
-X = read.csv(datapath, sep= '|')
-```
 
 * * *
 
