@@ -15,7 +15,7 @@ We illustrate an application of the HDPMPM modeling using data collected in 2016
 
 ## Software and analytical approaches
 
-The software and analytical approaches in this work center around custom R code developed specifically for implementing Gibbs sampling and posterior inference for the proposed model. This bespoke code efficiently handles the complexities of the Hierarchical Dirichlet Process Mixture of Products of Multinomial Distributions (HDPMPM) model, including the truncated stick-breaking representation and integrated missing data imputation. The R code is provided here in this repository.
+[The software and analytical approaches in this work center around custom R code developed specifically for implementing Gibbs sampling and posterior inference for the proposed model. This bespoke code efficiently handles the complexities of the Hierarchical Dirichlet Process Mixture of Products of Multinomial Distributions (HDPMPM) model, including the truncated stick-breaking representation and integrated missing data imputation. The R code is provided here in this repository.]:#
 
 ## Key file description
 On-going
