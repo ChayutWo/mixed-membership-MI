@@ -29,6 +29,6 @@ Ongoing
 
 **Author**
 
-Chayut Wongkamthong - Senior Data Scientist at [KASIKORN Business-Technology Group](https://www.kbtg.tech/)
+[Chayut Wongkamthong](https://chayutwo.github.io/) - Senior Data Scientist at [KASIKORN Business-Technology Group](https://www.kbtg.tech/)
 
-Olanrewaju M. Akande, Ph.D. - Research Scientist at [Meta](https://about.meta.com/)
+[Olanrewaju M. Akande, Ph.D.](https://www.olanrewajuakande.com/) - Research Scientist at [Meta](https://about.meta.com/)
