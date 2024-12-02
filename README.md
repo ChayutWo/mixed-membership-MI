@@ -17,11 +17,18 @@ We illustrate an application of the HDPMPM modeling using data collected in 2016
 
 [The software and analytical approaches in this work center around custom R code developed specifically for implementing Gibbs sampling and posterior inference for the proposed model. This bespoke code efficiently handles the complexities of the Hierarchical Dirichlet Process Mixture of Products of Multinomial Distributions (HDPMPM) model, including the truncated stick-breaking representation and integrated missing data imputation. The R code is provided here in this repository.]:#
 
+Ongoing
+
 ## Key file description
-On-going
+[* **[Analysis](https://github.com/ChayutWo/Nonparam-oridinal-nominal/tree/master/Analysis)**: Folder that contains all codes for generating subsampled datasets, performing MI on each of them, and analyzing the imputed datasets. The names of subfolders are self-explanatory.
+* **[Dataset](https://github.com/ChayutWo/Nonparam-oridinal-nominal/tree/master/Datasets)**: Folder that contains all 500 subsampled datasets for different missing data mechanisms.
+* **[GAIN](https://github.com/ChayutWo/Nonparam-oridinal-nominal/tree/master/GAIN)**: Folder that contains our two different implementation of GAIN: gain.py and gain_categorical.py.
+* **[utils/models](https://github.com/ChayutWo/Nonparam-oridinal-nominal/tree/master/utils/models)**: Folder that contains R codes for running different MI methods. The names of R files are self-explanatory.]:#
+  
+Ongoing
 
 ## Publications
-On-going
+Ongoing
 
 **Author**
 
