@@ -27,6 +27,4 @@ On-going
 
 Chayut Wongkamthong - Senior Data Scientist at [KASIKORN Business-Technology Group](https://www.kbtg.tech/)
 
-**Advisor**
-
 Olanrewaju M. Akande, Ph.D. - Research Scientist at [Meta](https://about.meta.com/)
